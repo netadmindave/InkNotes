@@ -35,8 +35,17 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    packagingOptions {
+        jniLibs { useLegacyPackaging false }
+    }
+
     androidResources {
         // keep .dic/.aff and fonts uncompressed-friendly; nothing special needed
         noCompress 'woff2'
     }
+}
+
+dependencies {
+    // Google ML Kit on-device handwriting recognition (model downloaded once, then offline)
+    implementation 'com.google.mlkit:digital-ink-recognition:18.1.0'
 }

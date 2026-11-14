@@ -17,7 +17,27 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
+import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.common.model.RemoteModelManager;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognition;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModel;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModelIdentifier;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognizer;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognizerOptions;
+import com.google.mlkit.vision.digitalink.Ink;
+import com.google.mlkit.vision.digitalink.RecognitionCandidate;
+import com.google.mlkit.vision.digitalink.RecognitionContext;
+import com.google.mlkit.vision.digitalink.RecognitionResult;
+import com.google.mlkit.vision.digitalink.WritingArea;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -38,6 +58,62 @@ public class MainActivity extends Activity {
     private WebView web;
     private String pendingBackup;
     private ValueCallback<Uri[]> fileCallback;
+
+    // ---- handwriting recognition (Google ML Kit Digital Ink, on-device) ----
+    private DigitalInkRecognitionModel inkModel;
+    private DigitalInkRecognizer inkRecognizer;
+    private volatile String inkState = "checking";   // checking | ready | missing | downloading | unavailable
+
+    private void initInk() {
+        try {
+            DigitalInkRecognitionModelIdentifier id = DigitalInkRecognitionModelIdentifier.fromLanguageTag("en-US");
+            if (id == null) { inkState = "unavailable"; return; }
+            inkModel = DigitalInkRecognitionModel.builder(id).build();
+            RemoteModelManager.getInstance().isModelDownloaded(inkModel)
+                    .addOnSuccessListener(ok -> {
+                        if (Boolean.TRUE.equals(ok)) makeRecognizer(); else inkState = "missing";
+                    })
+                    .addOnFailureListener(e -> inkState = "missing");
+        } catch (Throwable t) {
+            inkState = "unavailable";
+        }
+    }
+
+    private void makeRecognizer() {
+        if (inkRecognizer == null) {
+            inkRecognizer = DigitalInkRecognition.getClient(DigitalInkRecognizerOptions.builder(inkModel).build());
+        }
+        inkState = "ready";
+    }
+
+    private void jsReply(String id, boolean ok, String payload) {
+        runOnUiThread(() -> {
+            if (web == null) return;
+            String js = "window.InkRec && InkRec.onNative(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(payload) + ")";
+            web.evaluateJavascript(js, null);
+        });
+    }
+
+    private Ink buildInk(JSONArray strokes) throws Exception {
+        Ink.Builder ib = Ink.builder();
+        long t = 1000;
+        for (int i = 0; i < strokes.length(); i++) {
+            JSONArray pts = strokes.getJSONArray(i);
+            Ink.Stroke.Builder sb = Ink.Stroke.builder();
+            long last = -1;
+            for (int j = 0; j < pts.length(); j++) {
+                JSONArray q = pts.getJSONArray(j);
+                long ts = q.length() > 2 ? q.getLong(2) : 0;
+                long abs = t + (ts > 0 ? ts : j * 8L);
+                if (abs <= last) abs = last + 1;
+                last = abs;
+                sb.addPoint(Ink.Point.create((float) q.getDouble(0), (float) q.getDouble(1), abs));
+            }
+            ib.addStroke(sb.build());
+            t = last + 250;
+        }
+        return ib.build();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +159,7 @@ public class MainActivity extends Activity {
             }
         });
         web.addJavascriptInterface(new Bridge(), "Android");
+        initInk();
         web.loadUrl("file:///android_asset/www/index.html");
     }
 
@@ -254,6 +331,69 @@ public class MainActivity extends Activity {
                     startActivityForResult(i, REQ_SAVE_BACKUP);
                 } catch (Exception e) {
                     toast("No file picker available");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String inkStatus() {
+            return inkState;
+        }
+
+        @JavascriptInterface
+        public void inkDownload(String id, String json) {
+            runOnUiThread(() -> {
+                if (inkModel == null) { jsReply(id, false, "Handwriting recognition isn't available on this device"); return; }
+                if ("ready".equals(inkState)) { jsReply(id, true, "\"ready\""); return; }
+                inkState = "downloading";
+                RemoteModelManager.getInstance()
+                        .download(inkModel, new DownloadConditions.Builder().build())
+                        .addOnSuccessListener(v -> { makeRecognizer(); jsReply(id, true, "\"ready\""); })
+                        .addOnFailureListener(e -> { inkState = "missing"; jsReply(id, false, "Download failed: " + e.getMessage()); });
+            });
+        }
+
+        /** json: [{w,h,pre,strokes:[[[x,y,t],...],...]}, ...] → [[{t,s},...], ...] in the same order */
+        @JavascriptInterface
+        public void inkRecognize(String id, String json) {
+            runOnUiThread(() -> {
+                if (inkRecognizer == null) { jsReply(id, false, "Handwriting model not downloaded"); return; }
+                try {
+                    JSONArray reqs = new JSONArray(json);
+                    List<Task<RecognitionResult>> tasks = new ArrayList<>();
+                    for (int i = 0; i < reqs.length(); i++) {
+                        JSONObject r = reqs.getJSONObject(i);
+                        Ink ink = buildInk(r.getJSONArray("strokes"));
+                        RecognitionContext ctx = RecognitionContext.builder()
+                                .setPreContext(r.optString("pre", ""))
+                                .setWritingArea(new WritingArea((float) Math.max(1, r.optDouble("w", 100)), (float) Math.max(1, r.optDouble("h", 40))))
+                                .build();
+                        tasks.add(inkRecognizer.recognize(ink, ctx));
+                    }
+                    Tasks.whenAllComplete(tasks).addOnCompleteListener(all -> {
+                        try {
+                            JSONArray out = new JSONArray();
+                            for (Task<RecognitionResult> t : tasks) {
+                                JSONArray cands = new JSONArray();
+                                if (t.isSuccessful() && t.getResult() != null) {
+                                    for (RecognitionCandidate c : t.getResult().getCandidates()) {
+                                        JSONObject o = new JSONObject();
+                                        o.put("t", c.getText());
+                                        Float sc = c.getScore();
+                                        if (sc != null) o.put("s", sc.doubleValue());
+                                        cands.put(o);
+                                        if (cands.length() >= 8) break;
+                                    }
+                                }
+                                out.put(cands);
+                            }
+                            jsReply(id, true, out.toString());
+                        } catch (Exception e) {
+                            jsReply(id, false, String.valueOf(e.getMessage()));
+                        }
+                    });
+                } catch (Exception e) {
+                    jsReply(id, false, String.valueOf(e.getMessage()));
                 }
             });
         }

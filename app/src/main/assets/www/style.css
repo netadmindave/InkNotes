@@ -68,14 +68,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .seg button { border: 0; background: transparent; border-radius: 999px; padding: 7px 16px; font-size: 15px; }
 .seg button.on { background: #fffdf8; box-shadow: 0 1px 3px rgba(0,0,0,.15); font-weight: 600; color: var(--accent); }
 
-#mathbar, #inkbar { display: flex; gap: 6px; padding: 8px 14px; background: #efe8d8; border-bottom: 1px solid #e2dccd;
+#mathbar, #penbar { display: flex; gap: 6px; padding: 8px 14px; background: #efe8d8; border-bottom: 1px solid #e2dccd;
   overflow-x: auto; align-items: center; flex: none; }
-#mathbar[hidden], #inkbar[hidden] { display: none; }
+#mathbar[hidden] { display: none; }
 #mathbar button { min-width: 44px; height: 40px; border: 1px solid #d8d0bd; background: #fffdf8; border-radius: 8px; padding: 0 8px; font-size: 17px; flex: none; }
 #mathbar .katex { font-size: 1em; pointer-events: none; }
-#inkbar .tool, #inkbar .size { border: 1px solid #d8d0bd; background: #fffdf8; border-radius: 8px; height: 38px; padding: 0 12px; }
-#inkbar .tool.on, #inkbar .size.on { background: var(--accent); color: #fff; }
-#inkbar .size { width: 40px; padding: 0; font-size: 20px; }
+#penbar .tool, #penbar .size { border: 1px solid #d8d0bd; background: #fffdf8; border-radius: 8px; height: 38px; padding: 0 12px; }
+#penbar .tool.on, #penbar .size.on { background: var(--accent); color: #fff; }
+#penbar .size { width: 40px; padding: 0; font-size: 20px; }
 .swatches { display: inline-flex; gap: 6px; margin: 0 8px; }
 .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #c9c1ad; }
 .swatch.on { box-shadow: 0 0 0 3px var(--accent); }
@@ -195,7 +195,7 @@ body.handmath .katex .frac-line { border-bottom-width: 1.5px !important; border-
 /* ---------- print ---------- */
 @media print {
   html, body { overflow: visible; height: auto; background: #fff; }
-  #sidebar, #toolbar, #mathbar, #inkbar, #tail, #report, .popover, .modal, .actions, .tag, #scrim { display: none !important; }
+  #sidebar, #toolbar, #mathbar, #penbar, #tail, #report, .popover, .modal, .actions, .tag, #scrim { display: none !important; }
   #main, #scroller { overflow: visible; padding: 0; display: block; }
   #page { box-shadow: none; max-width: none; padding: 0 0 0 40px; background-color: #fff;
     -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -204,3 +204,30 @@ body.handmath .katex .frac-line { border-bottom-width: 1.5px !important; border-
   .block.ink svg { outline: none !important; background: none !important; }
   .block { break-inside: avoid; }
 }
+
+#penbar { gap: 6px; }
+#inkHint { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.block.ink svg { touch-action: none; }
+.block.ink.selected svg { outline: 2px solid rgba(59,130,246,.45); border-radius: 6px; }
+.block.ink path.sel { stroke: #3b82f6; stroke-width: 2.5; stroke-opacity: .55; }
+.block.ink .selbox { fill: rgba(59,130,246,.06); stroke: #3b82f6; stroke-dasharray: 6 5; stroke-width: 1.5; }
+.block.ink .lasso { fill: rgba(59,130,246,.08); stroke: #3b82f6; stroke-width: 2; stroke-dasharray: 5 5; }
+.block.ink .actions { top: -40px; }
+#tail { touch-action: none; min-height: calc(var(--line) * 8); }
+#tail span { pointer-events: none; }
+.modal .card.wide { width: min(900px, 96vw); }
+#cvBody .cv { border: 1px solid #ece4cf; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+#cvBody .cvhead { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+#cvBody .cvhead .seg button { padding: 5px 12px; font-size: 14px; }
+#cvBody textarea { border: 1px dashed #d6c79a; border-radius: 8px; padding: 8px 10px; font-size: 17px; background: #fffdf8; }
+#cvBody textarea.mono { font-family: ui-monospace, "Roboto Mono", monospace; }
+#cvBody .pv { min-height: 44px; padding: 6px 4px; color: var(--ink); overflow-x: auto; }
+#cvBody .pv.hand { font-family: var(--hand); font-size: var(--hand-size); line-height: var(--line); }
+#cvBody .pv .katex-display { margin: 4px 0; }
+#cvBody .alts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+#cvBody .alts button { border: 1px solid #e2dccd; background: #faf6ec; border-radius: 8px; padding: 3px 9px; font-size: 13px; }
+.cvbar { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.busy { opacity: .6; pointer-events: none; }
+#penbar .tool { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; flex: none; }
+#penbar .sizes { display: inline-flex; gap: 4px; flex: none; }
+#penbar .swatches { flex: none; }

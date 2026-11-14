@@ -3,6 +3,8 @@
 A handwriting-styled, math-aware notes app for Android, built for the Samsung Galaxy Tab S9+ and the S Pen. Everything works offline.
 
 ## Features
+- **Write anywhere with the S Pen** (Samsung Notes style). Pen, pencil and highlighter tools, 6 colours, 3 sizes, a stroke eraser (or hold the S Pen side button) and lasso selection. Pen pressure is used. The pen writes and fingers scroll, so your palm doesn't leave marks.
+- **⇄ Convert handwriting** into neat handwriting-font text or typeset formulas. The **Aa Text / ∑ Math / Auto** switch decides how it's read; Auto picks formulas out line by line. A preview lets you switch each piece between text and math, pick alternatives, or edit before inserting. Recognition is Google ML Kit Digital Ink, on-device (one-time ~20 MB model download). Formula layout (fractions, roots, exponents, subscripts, ∫/∑ limits) is InkNotes' own analyzer.
 - **Handwriting look**: text renders in a handwriting font (Caveat, Kalam, Patrick Hand or Shadows Into Light) on lined, grid, dot or plain paper.
 - **Text ⇄ Math switch**: the **Aa Text / ∑ Math** toggle in the toolbar. Switching while writing splits a new block at the cursor. In a math block, Enter finishes the formula and returns to text.
 - **Formulas**: type AsciiMath (`int_0^oo e^(-x^2) dx = sqrt(pi)/2`) or LaTeX (starting with `\`). Live preview while typing, plus a symbol bar (fractions, roots, integrals, Greek, relations, ...). Rendered with KaTeX. Optional handwritten-style formulas.
@@ -12,7 +14,7 @@ A handwriting-styled, math-aware notes app for Android, built for the Samsung Ga
 - Lists (`- `, `1. `), headings (`# `), checkboxes (`[ ] `), `**bold**`.
 - Export to PDF/print, share as text with LaTeX, back up and restore all notes as JSON.
 
-Typing with the S Pen: use Samsung's **S Pen to text** (write directly in a text block) or the Samsung Keyboard's handwriting mode.
+Typing with Samsung's own recognizer: in a typed block, use Samsung's **S Pen to text** (write directly on the text field) or the Samsung Keyboard's handwriting mode.
 
 ## Build
 GitHub Actions builds a signed release APK on every push to `main` and publishes it under **Releases**. Every build uses the same signing key (`keystore/`), so new versions install over old ones.

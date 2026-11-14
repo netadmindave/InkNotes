@@ -27,11 +27,12 @@
   <section id="main">
     <header id="toolbar">
       <button id="btnMenu" class="icon" title="Notes">☰</button>
-      <div class="seg" id="modeSeg" role="tablist" title="New writing is text or formula">
+      <div class="seg" id="modeSeg" role="tablist" title="Handwriting converts to / new typing is">
         <button data-mode="text" class="on">Aa Text</button>
         <button data-mode="math">∑ Math</button>
+        <button data-mode="auto">Auto</button>
       </div>
-      <button id="btnInk" class="pill" title="Add a handwriting / sketch area">✎ Ink</button>
+      <button id="btnConvert" class="pill primary" title="Convert handwriting">⇄ Convert</button>
       <button id="btnClean" class="pill accent" title="Clean up writing">✨ Clean up</button>
       <span class="grow"></span>
       <button id="btnUndo" class="icon" title="Undo">↶</button>
@@ -40,18 +41,20 @@
     </header>
 
     <div id="mathbar" hidden></div>
-    <div id="inkbar" hidden>
-      <button data-tool="pen" class="tool on">Pen</button>
-      <button data-tool="eraser" class="tool">Eraser</button>
+    <div id="penbar">
+      <button data-tool="pen" class="tool on" title="Pen">✒️ Pen</button>
+      <button data-tool="pencil" class="tool" title="Pencil">✏️ Pencil</button>
+      <button data-tool="hl" class="tool" title="Highlighter">🖍 Highlight</button>
+      <button data-tool="eraser" class="tool" title="Eraser (or hold the S Pen button)">⌫ Eraser</button>
+      <button data-tool="lasso" class="tool" title="Lasso select">◌ Lasso</button>
       <span class="swatches"></span>
       <span class="sizes">
         <button data-size="2.5" class="size">·</button>
         <button data-size="4" class="size on">•</button>
         <button data-size="7" class="size">●</button>
       </span>
-      <button id="inkTidy" class="pill">Smooth</button>
-      <button id="inkTaller" class="pill">Taller</button>
-      <button id="inkDone" class="pill primary">Done</button>
+      <span class="grow"></span>
+      <span id="inkHint">Write anywhere with the S Pen</span>
     </div>
 
     <div id="scroller">
@@ -59,7 +62,7 @@
         <input id="title" placeholder="Untitled" autocomplete="off" spellcheck="true">
         <div id="meta"></div>
         <div id="blocks"></div>
-        <div id="tail" title="Tap to write">Tap here to write…</div>
+        <div id="tail" title="Write with the S Pen, or tap to type"><span>Write here with the S Pen — or tap to type…</span></div>
       </article>
     </div>
 
@@ -81,10 +84,24 @@
     <button class="mi danger" id="miDelete">Delete this note</button>
   </div>
 
+  <div id="convert" class="modal" hidden>
+    <div class="card wide">
+      <h2>Convert handwriting</h2>
+      <div id="cvBody"></div>
+      <div class="cvbar">
+        <label class="chk"><input type="checkbox" id="cvKeep"> Keep the handwriting too</label>
+        <span class="grow"></span>
+        <button class="pill" id="cvCancel">Cancel</button>
+        <button class="pill primary" id="cvInsert">Insert</button>
+      </div>
+    </div>
+  </div>
+
   <div id="help" class="modal" hidden>
     <div class="card">
       <h2>Writing in InkNotes</h2>
-      <p><b>Aa Text / ∑ Math</b> switches what you're writing. Switching while you write splits off a new block at the cursor. In a Math block, <b>Enter</b> finishes the formula and goes back to text.</p>
+      <p><b>Handwriting:</b> write anywhere with the S Pen — fingers scroll. Tap <b>⇄ Convert</b> (or lasso some strokes first) to turn it into neat text or a formula; the switch decides: <b>Aa Text</b>, <b>∑ Math</b> or <b>Auto</b> (spots formulas line by line). You can fix the result before inserting. Hold the S Pen side button to erase.</p>
+      <p><b>Typing:</b> tap the page with your finger. <b>Aa Text / ∑ Math</b> also switches what you type. Switching while you write splits off a new block at the cursor. In a Math block, <b>Enter</b> finishes the formula and goes back to text.</p>
       <p><b>Math syntax</b> (AsciiMath, or LaTeX if it starts with a backslash):</p>
       <table>
         <tr><td><code>x^2 + y_1</code></td><td class="ex" data-am="x^2 + y_1"></td></tr>
@@ -115,6 +132,7 @@
 <script src="mathtext.js"></script>
 <script src="cleanup.js"></script>
 <script src="ink.js"></script>
+<script src="recognize.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

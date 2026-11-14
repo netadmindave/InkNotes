@@ -44,7 +44,7 @@
 
   const FONTS = [['caveat', 'Caveat', 'Caveat'], ['kalam', 'Kalam', 'Kalam'], ['patrick', 'Patrick Hand', 'Patrick'], ['shadows', 'Shadows Into Light', 'Shadows']];
   const PAPERS = [['lined', 'Lined'], ['grid', 'Grid'], ['dot', 'Dots'], ['plain', 'Plain']];
-  const INK_COLORS = ['#1d3557', '#111111', '#c2410c', '#2f7d32', '#7b2cbf'];
+  const INK_COLORS = ['#1d3557', '#111111', '#c2410c', '#2f7d32', '#7b2cbf', '#f5c518'];
 
   function applyBodyClasses() {
     document.body.classList.remove(...FONTS.map(f => 'font-' + f[0]));
@@ -207,9 +207,19 @@
     } else if (b.type === 'ink') {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       el.appendChild(svg);
-      Ink.render(svg, b);
+      const sel = inkSel && inkSel.id === b.id ? inkSel.idx : null;
+      Ink.render(svg, b, sel);
+      el._svg = svg;
+      el._ink = Ink.attach(svg, b, {
+        scroller: $('#scroller'),
+        onChange: () => { lastInkId = b.id; if (inkSel && inkSel.id === b.id) { inkSel = null; rerenderBlock(b.id); } commit(); },
+        onTap: () => selectInk(b.id, null),
+        onSelect: (idx) => { if (idx.length) selectInk(b.id, new Set(idx), true); else clearInkSel(); }
+      });
+      if (inkSel && inkSel.id === b.id) { el.classList.add('selected'); el.appendChild(inkActions(b)); }
     }
     el.addEventListener('click', (e) => {
+      if (b.type === 'ink') return;
       if (editing && editing.id === b.id) return;
       const cb = e.target.closest('.cb');
       if (cb && b.type === 'text') { toggleCheck(b, +cb.dataset.line); e.stopPropagation(); return; }
@@ -261,6 +271,8 @@
     finishEdit();
     const b = blockById(id);
     if (!b) return;
+    if (b.type === 'ink') { selectInk(id, null, true); return; }
+    clearInkSel();
     const old = blocksEl.querySelector('.block[data-id="' + id + '"]');
     const el = document.createElement('div');
     el.className = 'block ' + b.type + ' editing';
@@ -311,21 +323,8 @@
       ta.setSelectionRange(pos, pos);
       requestAnimationFrame(() => { autoGrow(ta); ensureVisible(el); });
       if (b.type === 'math') showMathbar();
-    } else if (b.type === 'ink') {
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      el.appendChild(svg);
-      Ink.render(svg, b);
-      editing.svg = svg;
-      editing.detach = Ink.attach(svg, b, {
-        color: () => prefs.inkColor, size: () => prefs.inkSize, tool: () => inkTool,
-        penOnly: () => prefs.penOnly, scroller: $('#scroller'),
-        onChange: () => { commit(); },
-        onPenSeen: () => { }
-      });
-      showInkbar();
-      ensureVisible(el);
     }
-    setModeUI(b.type === 'math' ? 'math' : b.type === 'text' ? 'text' : prefs.mode);
+    setModeUI(b.type === 'math' ? 'math' : 'text');
   }
 
   function ensureVisible(el) {
@@ -354,7 +353,51 @@
       ed.el.replaceWith(el);
     }
     commit();
+    setModeUI(prefs.mode);
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+
+  /* ---------------- ink selection ---------------- */
+  let inkSel = null;      // {id, idx: Set|null}  (null idx = whole area)
+  let lastInkId = null;
+  function selectInk(id, idx, keep) {
+    finishEdit();
+    const prev = inkSel && inkSel.id;
+    if (!keep && inkSel && inkSel.id === id && !inkSel.idx && !idx) { inkSel = null; rerenderBlock(id); return; }
+    inkSel = { id, idx: idx || null };
+    lastInkId = id;
+    if (prev && prev !== id) rerenderBlock(prev);
+    rerenderBlock(id);
+  }
+  function clearInkSel() {
+    if (!inkSel) return;
+    const id = inkSel.id;
+    inkSel = null;
+    rerenderBlock(id);
+  }
+  function inkActions(b) {
+    const a = document.createElement('div');
+    a.className = 'actions';
+    const idx = inkSel && inkSel.idx;
+    const btn = (label, fn, cls) => {
+      const x = document.createElement('button');
+      x.textContent = label; if (cls) x.className = cls;
+      x.addEventListener('pointerdown', e => e.stopPropagation());
+      x.addEventListener('click', e => { e.stopPropagation(); fn(); });
+      a.appendChild(x);
+    };
+    btn('⇄ Convert', () => convertInk(b.id, idx));
+    btn('Smooth', () => { Ink.smooth(b, idx); rerenderBlock(b.id); commit(); });
+    if (idx) {
+      btn('Delete', () => { b.strokes = b.strokes.filter((_, i) => !idx.has(i)); inkSel = null; if (!b.strokes.length) deleteBlock(b.id); else { rerenderBlock(b.id); commit(); } }, 'danger');
+    } else {
+      btn('↑', () => moveBlock(b.id, -1));
+      btn('↓', () => moveBlock(b.id, 1));
+      btn('Taller', () => { b.h += 200; rerenderBlock(b.id); commit(); });
+      btn('Delete', () => { inkSel = null; deleteBlock(b.id); }, 'danger');
+    }
+    btn('✕', () => clearInkSel());
+    return a;
   }
 
   function insertBlock(type, afterId, src) {
@@ -429,6 +472,7 @@
     const i = blockIndex(id);
     if (i < 0) return;
     if (editing && editing.id === id) { editing.detach && editing.detach(); editing = null; hideBars(); }
+    if (inkSel && inkSel.id === id) inkSel = null;
     note.blocks.splice(i, 1);
     const el = blocksEl.querySelector('.block[data-id="' + id + '"]');
     el && el.remove();
@@ -442,7 +486,7 @@
   function setMode(m, quiet) {
     setPref('mode', m);
     setModeUI(m);
-    if (quiet || !editing) return;
+    if (quiet || !editing || m === 'auto') return;
     const b = blockById(editing.id);
     if (!b || b.type === m || b.type === 'ink') return;
     if (b.type === 'text' && m === 'math') {
@@ -498,35 +542,35 @@
       bar.appendChild(x);
     }
   }
-  let inkTool = 'pen';
-  function buildInkbar() {
-    const sw = $('#inkbar .swatches');
+  function buildPenbar() {
+    Ink.tool.color = prefs.inkColor; Ink.tool.size = prefs.inkSize; Ink.tool.penOnly = prefs.penOnly;
+    const sw = $('#penbar .swatches');
     for (const c of INK_COLORS) {
       const x = document.createElement('button');
       x.className = 'swatch' + (c === prefs.inkColor ? ' on' : '');
       x.style.background = c;
-      x.onclick = () => { setPref('inkColor', c); $$('.swatch').forEach(s => s.classList.toggle('on', s === x)); inkTool = 'pen'; syncTools(); };
+      x.onclick = () => {
+        setPref('inkColor', c); Ink.tool.color = c;
+        $$('.swatch').forEach(s => s.classList.toggle('on', s === x));
+        if (Ink.tool.kind === 'eraser' || Ink.tool.kind === 'lasso') { Ink.tool.kind = 'pen'; syncTools(); }
+      };
       sw.appendChild(x);
     }
-    $$('#inkbar .tool').forEach(t => t.onclick = () => { inkTool = t.dataset.tool; syncTools(); });
-    $$('#inkbar .size').forEach(t => {
+    $$('#penbar .tool').forEach(t => t.onclick = () => { Ink.tool.kind = t.dataset.tool; syncTools(); });
+    $$('#penbar .size').forEach(t => {
       t.classList.toggle('on', parseFloat(t.dataset.size) === prefs.inkSize);
-      t.onclick = () => { setPref('inkSize', parseFloat(t.dataset.size)); $$('#inkbar .size').forEach(s => s.classList.toggle('on', s === t)); };
+      t.onclick = () => { setPref('inkSize', parseFloat(t.dataset.size)); Ink.tool.size = prefs.inkSize; $$('#penbar .size').forEach(s => s.classList.toggle('on', s === t)); };
     });
-    $('#inkDone').onclick = () => finishEdit();
-    $('#inkTaller').onclick = () => {
-      if (!editing || editing.type !== 'ink') return;
-      const b = blockById(editing.id); b.h += 200; Ink.setup(editing.svg, b); commit();
-    };
-    $('#inkTidy').onclick = () => {
-      if (!editing || editing.type !== 'ink') return;
-      const b = blockById(editing.id); Ink.smooth(b); Ink.render(editing.svg, b); commit();
-    };
+    syncTools();
   }
-  function syncTools() { $$('#inkbar .tool').forEach(t => t.classList.toggle('on', t.dataset.tool === inkTool)); }
-  function showMathbar() { $('#mathbar').hidden = false; $('#inkbar').hidden = true; }
-  function showInkbar() { $('#inkbar').hidden = false; $('#mathbar').hidden = true; inkTool = 'pen'; syncTools(); }
-  function hideBars() { $('#mathbar').hidden = true; $('#inkbar').hidden = true; }
+  const HINTS = { pen: 'Write anywhere with the S Pen · fingers scroll', pencil: 'Pencil', hl: 'Highlighter — draws under your writing',
+    eraser: 'Erase whole strokes (or hold the S Pen button any time)', lasso: 'Circle strokes to select, then Convert' };
+  function syncTools() {
+    $$('#penbar .tool').forEach(t => t.classList.toggle('on', t.dataset.tool === Ink.tool.kind));
+    $('#inkHint').textContent = HINTS[Ink.tool.kind] || '';
+  }
+  function showMathbar() { $('#mathbar').hidden = false; }
+  function hideBars() { $('#mathbar').hidden = true; }
 
   /* ---------------- clean up ---------------- */
   function ensureSpell() {
@@ -535,11 +579,8 @@
 
   function cleanUp() {
     if (!note) return;
-    if (editing && editing.type === 'ink') {
-      const b = blockById(editing.id); Ink.smooth(b); Ink.render(editing.svg, b); commit();
-      toast('Strokes smoothed'); return;
-    }
     finishEdit();
+    inkSel = null;
     ensureSpell();
     const all = [];
     const unknown = new Map();
@@ -617,6 +658,178 @@
         renderBlocks();
       });
     });
+  }
+
+  /* ---------------- writing pad: the S Pen writes anywhere below the last block ---------------- */
+  function wireTail() {
+    const tail = $('#tail');
+    let finger = null;
+    tail.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') {
+        finger = { id: e.pointerId, x0: e.clientX, y0: e.clientY, y: e.clientY, t: e.timeStamp, v: 0 };
+        try { tail.setPointerCapture(e.pointerId); } catch (err) { }
+        return;
+      }
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      finishEdit();
+      clearInkSel();
+      let b = note.blocks[note.blocks.length - 1];
+      if (!b || b.type !== 'ink') b = insertBlock('ink');
+      const el = blocksEl.querySelector('.block[data-id="' + b.id + '"]');
+      const r = el._svg.getBoundingClientRect();
+      const need = (e.clientY - r.top) * (b.w / r.width) + 140;
+      if (need > b.h) { b.h = Math.ceil(need); Ink.setup(el._svg, b); }
+      el._ink.begin(e);
+    });
+    tail.addEventListener('pointermove', (e) => {
+      if (!finger || e.pointerId !== finger.id) return;
+      const dy = e.clientY - finger.y, dt = Math.max(1, e.timeStamp - finger.t);
+      $('#scroller').scrollTop -= dy;
+      finger.v = 0.7 * finger.v + 0.3 * dy / dt; finger.y = e.clientY; finger.t = e.timeStamp;
+    });
+    const end = (e) => {
+      if (!finger || e.pointerId !== finger.id) return;
+      const moved = Math.hypot(e.clientX - finger.x0, e.clientY - finger.y0);
+      if (moved >= 8 && Math.abs(finger.v) > 0.1) Ink.fling($('#scroller'), finger.v);
+      finger = null;
+      if (moved < 8 && e.type === 'pointerup') typeAtEnd();
+    };
+    tail.addEventListener('pointerup', end);
+    tail.addEventListener('pointercancel', end);
+  }
+
+  function typeAtEnd() {
+    const last = note.blocks[note.blocks.length - 1];
+    const type = prefs.mode === 'math' ? 'math' : 'text';
+    if (last && editing && editing.id === last.id) return;
+    finishEdit();
+    clearInkSel();
+    const b = insertBlock(type);
+    startEdit(b.id);
+  }
+
+  /* ---------------- convert handwriting ---------------- */
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  function setBusy(on, label) {
+    $('#btnConvert').classList.toggle('busy', on);
+    $('#btnConvert').textContent = on ? (label || 'Reading…') : '⇄ Convert';
+  }
+
+  async function ensureModel() {
+    if (window.InkRecMock) return true;
+    let st = InkRec.status();
+    for (let i = 0; i < 10 && st === 'checking'; i++) { await sleep(300); st = InkRec.status(); }
+    if (st === 'ready') return true;
+    if (st === 'unavailable') { toast("Handwriting recognition isn't available on this device"); return false; }
+    if (st === 'downloading') { toast('The handwriting model is still downloading…'); return false; }
+    if (!(await ask('Converting handwriting needs Google\'s on-device handwriting model (about 20 MB, one-time download). After that it works offline. Download it now?', 'Download'))) return false;
+    setBusy(true, 'Downloading…');
+    try { await InkRec.download(); toast('Handwriting model ready'); return true; }
+    catch (e) { toast(e.message); return false; }
+    finally { setBusy(false); }
+  }
+
+  let cv = null;   // {id, idx, items:[{type,src,alts,strokes}]}
+  const copyStrokes = (list) => list.map(st => ({ c: st.c, s: st.s, k: st.k, p: st.p.map(q => q.slice()) }));
+
+  async function convertInk(id, idx) {
+    const b = blockById(id);
+    if (!b) return;
+    const strokes = b.strokes.filter((st, i) => (!idx || idx.has(i)) && st.k !== 'hl');
+    if (!strokes.length) { toast('Nothing to convert'); return; }
+    if (!(await ensureModel())) return;
+    setBusy(true);
+    try {
+      const res = await InkRec.convert(copyStrokes(strokes), prefs.mode);
+      if (!res.length) { toast('Couldn\'t read that'); return; }
+      ensureSpell();
+      res.forEach(r => { if (r.type === 'text') r.src = Cleanup.cleanText(r.src, { userDict, autoMath: prefs.autoMath }).text; });
+      cv = { id, idx, items: res };
+      renderConvert();
+      $('#convert').hidden = false;
+    } catch (e) {
+      toast('Recognition failed: ' + e.message);
+    } finally { setBusy(false); }
+  }
+
+  function renderConvert() {
+    const body = $('#cvBody');
+    body.innerHTML = '';
+    cv.items.forEach((it, k) => {
+      const box = document.createElement('div');
+      box.className = 'cv';
+      box.innerHTML = '<div class="cvhead"><div class="seg"><button data-t="text">Aa Text</button><button data-t="math">∑ Math</button></div>' +
+        '<span class="grow"></span><button class="pill" data-rm="1">Remove</button></div><textarea rows="1"></textarea><div class="pv"></div><div class="alts"></div>';
+      const ta = box.querySelector('textarea'), pv = box.querySelector('.pv');
+      ta.value = it.src;
+      ta.classList.toggle('mono', it.type === 'math');
+      $$('.seg button', box).forEach(btn => {
+        btn.classList.toggle('on', btn.dataset.t === it.type);
+        btn.onclick = async () => {
+          if (btn.dataset.t === it.type) return;
+          const want = btn.dataset.t;
+          box.classList.add('busy');
+          try {
+            const again = it.strokes ? await InkRec.convert(it.strokes, want) : [];
+            it.src = again.length ? again.map(r => r.src).join(want === 'text' ? '\n' : ' ') : it.src;
+            if (want === 'text') it.src = Cleanup.cleanText(it.src, { userDict, autoMath: prefs.autoMath }).text;
+          } catch (e) { toast(e.message); }
+          it.type = want;
+          renderConvert();
+        };
+      });
+      box.querySelector('[data-rm]').onclick = () => { cv.items.splice(k, 1); renderConvert(); };
+      const upd = () => {
+        it.src = ta.value;
+        autoGrow(ta);
+        if (it.type === 'math') { pv.className = 'pv'; pv.innerHTML = MathText.renderMath(it.src, true).html; }
+        else { pv.className = 'pv hand'; pv.innerHTML = MathText.renderText(it.src, { autoMath: prefs.autoMath }); }
+      };
+      ta.addEventListener('input', upd);
+      const alts = box.querySelector('.alts');
+      (it.alts || []).filter(a => a && a !== it.src).slice(0, 4).forEach(a => {
+        const x = document.createElement('button');
+        x.textContent = a;
+        x.onclick = () => { ta.value = it.type === 'text' ? Cleanup.cleanText(a, { userDict, autoMath: prefs.autoMath }).text : a; upd(); };
+        alts.appendChild(x);
+      });
+      body.appendChild(box);
+      requestAnimationFrame(upd);
+    });
+    if (!cv.items.length) body.innerHTML = '<p style="color:#7a7466">Nothing left to insert.</p>';
+  }
+
+  function closeConvert() { $('#convert').hidden = true; cv = null; }
+
+  function insertConverted() {
+    if (!cv) return;
+    const b = blockById(cv.id);
+    if (!b) { closeConvert(); return; }
+    const keep = $('#cvKeep').checked;
+    const items = cv.items.filter(it => it.src.trim());
+    let at = blockIndex(b.id);
+    if (cv.idx && !keep) {
+      // selection: place the result above the ink if nothing else sits above the selection
+      const sel = b.strokes.filter((_, i) => cv.idx.has(i)), rest = b.strokes.filter((_, i) => !cv.idx.has(i));
+      const selTop = Ink.boundsOf(sel).y0;
+      const restAbove = rest.some(st => Ink.boundsOf([st]).y1 < selTop);
+      if (restAbove) at += 1;
+      b.strokes = rest;
+    } else if (!keep) {
+      b.strokes = [];
+    } else {
+      at += 1;
+    }
+    for (const it of items) {
+      const nb = { id: uid(), type: it.type, src: it.type === 'math' ? it.src.trim() : it.src };
+      note.blocks.splice(at++, 0, nb);
+    }
+    if (!b.strokes.length) note.blocks.splice(blockIndex(b.id), 1);
+    inkSel = null;
+    closeConvert();
+    renderBlocks();
+    commit();
   }
 
   /* ---------------- export ---------------- */
@@ -705,7 +918,7 @@
     };
     bind('#optHandMath', 'handMath', () => renderBlocks());
     bind('#optAutoMath', 'autoMath', () => renderBlocks());
-    bind('#optPenOnly', 'penOnly');
+    bind('#optPenOnly', 'penOnly', () => { Ink.tool.penOnly = prefs.penOnly; });
     $('#miPdf').onclick = () => { closeMenu(); finishEdit(); saveNow(); setTimeout(() => A ? A.printPdf(note.title || 'InkNotes') : window.print(), 150); };
     $('#miShare').onclick = () => { closeMenu(); finishEdit(); const md = toMarkdown(); if (A) A.shareText(note.title || 'Note', md); else console.log(md); };
     $('#miHelp').onclick = () => { closeMenu(); openHelp(); };
@@ -734,11 +947,11 @@
   /* ---------------- welcome note ---------------- */
   function welcome() {
     const blocks = [
-      { id: uid(), type: 'text', src: 'Write normally in text blocks. teh app tidies up spelling , spacing and capitals when you tap ✨ Clean up.\nmath inside sentences is spotted automatically: the energy is E = mc^2, and a^2 + b^2 = c^2 when the angle is 90deg.' },
-      { id: uid(), type: 'text', src: '# Formulas\nTap **∑ Math** (or the → ∑ button on a block) for a display formula:' },
+      { id: uid(), type: 'text', src: '# Write with the S Pen\nWrite anywhere below with the pen — fingers scroll. Then tap **⇄ Convert**: your handwriting becomes neat text like this, and formulas become typeset math. The **Aa Text / ∑ Math / Auto** switch decides how it is read, and you can fix anything before it is inserted.\n[ ] Try it: write a sentence, then x^2 + y^2 = r^2 on the next line, and Convert with Auto' },
+      { id: uid(), type: 'text', src: '# Pen tools\n- Pen, pencil and highlighter, 6 colours, 3 sizes\n- Hold the S Pen side button to erase, or pick the eraser\n- Lasso strokes to convert, smooth or delete just those' },
+      { id: uid(), type: 'text', src: '# Typing\nTap the page with a finger to type. teh app tidies spelling , spacing and capitals when you tap ✨ Clean up.\nmath inside sentences is spotted automatically: E = mc^2 and a^2 + b^2 = c^2.' },
       { id: uid(), type: 'math', src: 'int_0^oo e^(-x^2) dx = sqrt(pi)/2' },
-      { id: uid(), type: 'math', src: '(dn)/(dT) ~~ 1.2 xx 10^-5 K^-1' },
-      { id: uid(), type: 'text', src: '# Lists\n- bullets start with a dash\n1. numbers work too\n[x] tap a box to tick it\n[ ] try the ✎ Ink button to sketch with the S Pen' }
+      { id: uid(), type: 'math', src: '(dn)/(dT) ~~ 1.2 xx 10^-5 K^-1' }
     ];
     return newNote(blocks, 'Welcome to InkNotes');
   }
@@ -747,13 +960,16 @@
   function wire() {
     $$('#modeSeg button').forEach(b => b.addEventListener('pointerdown', e => e.preventDefault()));
     $$('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
-    $('#btnInk').addEventListener('pointerdown', e => e.preventDefault());
-    $('#btnInk').onclick = () => {
-      const after = editing ? editing.id : null, i = after ? blockIndex(after) : -1;
-      finishEdit();
-      const b = after ? insertAt('ink', blockById(after) ? i + 1 : i) : insertBlock('ink');
-      startEdit(b.id);
+    $('#btnConvert').addEventListener('pointerdown', e => e.preventDefault());
+    $('#btnConvert').onclick = () => {
+      if (inkSel) return convertInk(inkSel.id, inkSel.idx);
+      const inks = note.blocks.filter(b => b.type === 'ink' && b.strokes.length);
+      if (!inks.length) { toast('Write something with the S Pen first'); return; }
+      const target = inks.find(b => b.id === lastInkId) || inks[inks.length - 1];
+      convertInk(target.id, null);
     };
+    $('#cvCancel').onclick = () => closeConvert();
+    $('#cvInsert').onclick = () => insertConverted();
     $('#btnClean').addEventListener('pointerdown', e => e.preventDefault());
     $('#btnClean').onclick = cleanUp;
     $('#btnUndo').onclick = undo;
@@ -777,19 +993,13 @@
         else startEdit(insertBlock(prefs.mode === 'math' ? 'math' : 'text').id);
       }
     });
-    $('#tail').onclick = () => {
-      const last = note.blocks[note.blocks.length - 1];
-      const type = prefs.mode === 'math' ? 'math' : 'text';
-      if (last && last.type === type && type === 'text' && editing && editing.id === last.id) return;
-      finishEdit();
-      const b = insertBlock(type);
-      startEdit(b.id);
-    };
+    wireTail();
     // tap outside the block being edited finishes it
     document.addEventListener('pointerdown', (e) => {
       if (!$('#menu').hidden && !e.target.closest('#menu') && !e.target.closest('#btnMore')) closeMenu();
       if (!editing) return;
-      if (e.target.closest('.block.editing, #toolbar, #mathbar, #inkbar, #report, #menu, .modal, #tail')) return;
+      if (inkSel && !e.target.closest('.block.ink.selected, #toolbar, #penbar, .modal, #report')) clearInkSel();
+      if (e.target.closest('.block.editing, #toolbar, #mathbar, #penbar, #report, #menu, .modal, #tail')) return;
       if (e.target.closest('.block')) return; // the click handler on that block switches editing
       if (e.target.closest('#page') || e.target.closest('#scroller')) finishEdit();
     }, true);
@@ -798,7 +1008,9 @@
 
   window.InkNotes = {
     onBack() {
+      if (!$('#convert').hidden) { closeConvert(); return true; }
       if (!$('#help').hidden) { $('#help').hidden = true; return true; }
+      if (inkSel) { clearInkSel(); return true; }
       if (!$('#menu').hidden) { closeMenu(); return true; }
       if (!$('#report').hidden) { $('#report').hidden = true; return true; }
       if (editing) { finishEdit(); return true; }
@@ -806,13 +1018,13 @@
       return false;
     },
     flush() { if (editing) commit(); saveNow(); },
-    _debug: { get note() { return note; }, cleanUp, setMode, startEdit, finishEdit, insertBlock }
+    _debug: { get note() { return note; }, cleanUp, setMode, startEdit, finishEdit, insertBlock, convertInk, renderBlocks }
   };
 
   /* ---------------- boot ---------------- */
   applyBodyClasses();
   buildMathbar();
-  buildInkbar();
+  buildPenbar();
   buildMenu();
   wire();
   setModeUI(prefs.mode);
