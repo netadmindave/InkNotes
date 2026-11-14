@@ -1,0 +1,42 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.netadmindave.inknotes'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.netadmindave.inknotes'
+        minSdk 29
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName "1.0." + (System.getenv('VERSION_CODE') ?: '0')
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../keystore/inknotes.jks')
+            storePassword 'inknotes'
+            keyAlias 'inknotes'
+            keyPassword 'inknotes'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        // keep .dic/.aff and fonts uncompressed-friendly; nothing special needed
+        noCompress 'woff2'
+    }
+}

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>InkNotes</title>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="side-head">
+      <span class="brand">InkNotes</span>
+      <button id="btnNew" class="pill primary" title="New note">＋ New</button>
+    </div>
+    <input id="search" type="search" placeholder="Search notes…" autocomplete="off">
+    <ul id="noteList"></ul>
+    <div class="side-foot">
+      <button id="btnBackup" class="link">Back up all notes</button>
+      <label class="link" for="restoreFile">Restore backup</label>
+      <input id="restoreFile" type="file" accept="application/json,.json" hidden>
+    </div>
+  </aside>
+  <div id="scrim"></div>
+
+  <section id="main">
+    <header id="toolbar">
+      <button id="btnMenu" class="icon" title="Notes">☰</button>
+      <div class="seg" id="modeSeg" role="tablist" title="New writing is text or formula">
+        <button data-mode="text" class="on">Aa Text</button>
+        <button data-mode="math">∑ Math</button>
+      </div>
+      <button id="btnInk" class="pill" title="Add a handwriting / sketch area">✎ Ink</button>
+      <button id="btnClean" class="pill accent" title="Clean up writing">✨ Clean up</button>
+      <span class="grow"></span>
+      <button id="btnUndo" class="icon" title="Undo">↶</button>
+      <button id="btnRedo" class="icon" title="Redo">↷</button>
+      <button id="btnMore" class="icon" title="More">⋮</button>
+    </header>
+
+    <div id="mathbar" hidden></div>
+    <div id="inkbar" hidden>
+      <button data-tool="pen" class="tool on">Pen</button>
+      <button data-tool="eraser" class="tool">Eraser</button>
+      <span class="swatches"></span>
+      <span class="sizes">
+        <button data-size="2.5" class="size">·</button>
+        <button data-size="4" class="size on">•</button>
+        <button data-size="7" class="size">●</button>
+      </span>
+      <button id="inkTidy" class="pill">Smooth</button>
+      <button id="inkTaller" class="pill">Taller</button>
+      <button id="inkDone" class="pill primary">Done</button>
+    </div>
+
+    <div id="scroller">
+      <article id="page" class="paper-lined">
+        <input id="title" placeholder="Untitled" autocomplete="off" spellcheck="true">
+        <div id="meta"></div>
+        <div id="blocks"></div>
+        <div id="tail" title="Tap to write">Tap here to write…</div>
+      </article>
+    </div>
+
+    <div id="report" hidden></div>
+  </section>
+
+  <div id="menu" class="popover" hidden>
+    <div class="mh">Handwriting</div>
+    <div class="row" id="fontRow"></div>
+    <div class="mh">Paper</div>
+    <div class="row" id="paperRow"></div>
+    <label class="chk"><input type="checkbox" id="optHandMath"> Handwritten-style formulas</label>
+    <label class="chk"><input type="checkbox" id="optAutoMath"> Auto-detect math in text</label>
+    <label class="chk"><input type="checkbox" id="optPenOnly"> In ink areas, only the S Pen draws</label>
+    <hr>
+    <button class="mi" id="miPdf">Export PDF / Print</button>
+    <button class="mi" id="miShare">Share as text (LaTeX)</button>
+    <button class="mi" id="miHelp">How to write math</button>
+    <button class="mi danger" id="miDelete">Delete this note</button>
+  </div>
+
+  <div id="help" class="modal" hidden>
+    <div class="card">
+      <h2>Writing in InkNotes</h2>
+      <p><b>Aa Text / ∑ Math</b> switches what you're writing. Switching while you write splits off a new block at the cursor. In a Math block, <b>Enter</b> finishes the formula and goes back to text.</p>
+      <p><b>Math syntax</b> (AsciiMath, or LaTeX if it starts with a backslash):</p>
+      <table>
+        <tr><td><code>x^2 + y_1</code></td><td class="ex" data-am="x^2 + y_1"></td></tr>
+        <tr><td><code>(a+b)/(c-d)</code></td><td class="ex" data-am="(a+b)/(c-d)"></td></tr>
+        <tr><td><code>sqrt(2)  root(3)(x)</code></td><td class="ex" data-am="sqrt(2)  root(3)(x)"></td></tr>
+        <tr><td><code>int_0^oo e^(-x^2) dx</code></td><td class="ex" data-am="int_0^oo e^(-x^2) dx"></td></tr>
+        <tr><td><code>sum_(n=1)^N 1/n^2</code></td><td class="ex" data-am="sum_(n=1)^N 1/n^2"></td></tr>
+        <tr><td><code>lim_(x->0) sin x / x</code></td><td class="ex" data-am="lim_(x->0) (sin x)/x"></td></tr>
+        <tr><td><code>(del n)/(del T)</code></td><td class="ex" data-am="(del n)/(del T)"></td></tr>
+        <tr><td><code>alpha, Delta, lambda, pi</code></td><td class="ex" data-am="alpha, Delta, lambda, pi"></td></tr>
+        <tr><td><code>a &lt;= b, x != y, +-, xx, ~~</code></td><td class="ex" data-am="a <= b, x != y, +-, xx, ~~"></td></tr>
+        <tr><td><code>[[a,b],[c,d]]</code></td><td class="ex" data-am="[[a,b],[c,d]]"></td></tr>
+        <tr><td><code>vec v, hat x, bar z, dot x</code></td><td class="ex" data-am="vec v, hat x, bar z, dot x"></td></tr>
+      </table>
+      <p><b>In text</b>, wrap math in <code>$…$</code>, or just write it — things like <code>E = mc^2</code> or <code>x_1 + x_2</code> are spotted automatically.</p>
+      <p><b>Lists:</b> start a line with <code>- </code>, <code>1. </code>, <code># </code> (heading) or <code>[ ] </code> (checkbox). <code>**bold**</code> works too.</p>
+      <p><b>✨ Clean up</b> fixes spacing, capitals, doubled words and spelling, and leaves math alone. Words it doesn't know can be added to your dictionary. In ink areas it smooths your strokes. Undo (↶) reverts it.</p>
+      <p><b>S Pen:</b> in a text block, write with the pen to type (Samsung's <i>S Pen to text</i>, or the handwriting mode of the Samsung Keyboard). In an Ink area, draw freely; hold the pen's side button to erase.</p>
+      <button class="pill primary" id="helpClose">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/asciimath2tex.umd.js"></script>
+<script src="vendor/typo.js"></script>
+<script src="vendor/perfect-freehand.js"></script>
+<script src="mathtext.js"></script>
+<script src="cleanup.js"></script>
+<script src="ink.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- paper -->
+    <path android:fillColor="#FBF8F1"
+        android:pathData="M33,28 L69,28 Q73,28 73,32 L73,78 Q73,82 69,82 L33,82 Q29,82 29,78 L29,32 Q29,28 33,28 Z"/>
+    <!-- ruled lines -->
+    <path android:strokeColor="#A9C1DD" android:strokeWidth="1.2"
+        android:pathData="M33,40 L69,40 M33,50 L69,50 M33,60 L69,60 M33,70 L69,70"/>
+    <!-- handwritten sigma -->
+    <path android:strokeColor="#1F3A5F" android:strokeWidth="3.2"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M52,37 Q44,36 38,38 Q44,45 47,49 Q43,54 37,62 Q45,61 53,62"/>
+    <!-- squiggle "x" -->
+    <path android:strokeColor="#C2410C" android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M56,52 Q60,58 64,64 M64,52 Q60,58 56,64"/>
+    <!-- pen -->
+    <path android:fillColor="#E9B949"
+        android:pathData="M77,30 L82,35 L62,75 L57,77 L58,71 Z"/>
+    <path android:fillColor="#1F3A5F"
+        android:pathData="M57,77 L58,71 L62,75 Z"/>
+</vector>
