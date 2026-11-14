@@ -81,26 +81,30 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .swatch.on { box-shadow: 0 0 0 3px var(--accent); }
 
 /* ---------- page ---------- */
-#scroller { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 22px 22px 60vh; }
-#page { position: relative; max-width: 1000px; margin: 0 auto; min-height: 100%; background-color: var(--paper);
-  border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.06);
-  padding: calc(var(--line) * 1) 48px calc(var(--line) * 3) 92px; }
-#page.paper-lined {
+#scroller { flex: 1; overflow: auto; touch-action: none; overscroll-behavior: contain; }
+#pages { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 18px 0 40vh; min-width: min-content; }
+.sheet { position: relative; flex: none; background-color: var(--paper); border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 6px 22px rgba(0,0,0,.08); overflow: visible; }
+.sheet .content { position: relative; margin: 80px 56px 56px 96px; display: flex; flex-direction: column; }
+.sheet .pad { flex: 1 1 auto; min-height: 24px; position: relative; cursor: crosshair; }
+.sheet .pnum { position: absolute; bottom: 18px; right: 56px; font-size: 12px; color: #b8b1a0; }
+.sheet.paper-lined {
   background-image:
-    linear-gradient(90deg, transparent 70px, var(--margin) 70px, var(--margin) 72px, transparent 72px),
+    linear-gradient(90deg, transparent 72px, var(--margin) 72px, var(--margin) 74px, transparent 74px),
     repeating-linear-gradient(180deg, transparent 0, transparent calc(var(--line) - 1px), var(--rule) calc(var(--line) - 1px), var(--rule) var(--line));
-}
-#page.paper-grid {
-  background-image:
+  background-position: 0 0, 0 0; }
+.sheet.paper-grid { background-image:
     repeating-linear-gradient(90deg, transparent 0, transparent 19px, #e2e9f1 19px, #e2e9f1 20px),
-    repeating-linear-gradient(180deg, transparent 0, transparent 19px, #e2e9f1 19px, #e2e9f1 20px);
-}
-#page.paper-dot { background-image: radial-gradient(circle at 1px 1px, #c4cfdc 1.2px, transparent 1.6px); background-size: 24px 24px; }
-#page.paper-plain { background-image: none; }
+    repeating-linear-gradient(180deg, transparent 0, transparent 19px, #e2e9f1 19px, #e2e9f1 20px); }
+.sheet.paper-dot { background-image: radial-gradient(circle at 1px 1px, #c4cfdc 1.2px, transparent 1.6px); background-size: 24px 24px; }
+.sheet.paper-plain { background-image: none; }
+.rmpage { position: absolute; top: 12px; right: 0; font-size: 13px; }
+#addPage { margin: 4px 0 0; }
+#noteHead { flex: none; }
 
 #title { display: block; width: 100%; border: 0; background: transparent; outline: none; font-family: var(--hand);
   font-size: calc(var(--hand-size) * 1.45); color: var(--ink); height: calc(var(--line) * 1.5); line-height: calc(var(--line) * 1.5);
-  padding: 0; margin-top: calc(var(--line) * -0.5); }
+  padding: 0; margin-top: calc(var(--line) * -1); }
 #title::placeholder { color: #b8b1a0; }
 #meta { font-size: 12px; color: var(--muted); height: var(--line); line-height: var(--line); }
 
@@ -120,7 +124,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hand b { font-weight: 700; }
 .hand .misspelt { text-decoration: underline wavy rgba(194,65,12,.55); text-decoration-skip-ink: none; }
 .hand .katex { font-size: .82em; line-height: 1; }
-.hand .im { display: inline-block; vertical-align: baseline; }
+.hand .im { display: inline-block; vertical-align: baseline; margin: 0 .06em; text-indent: 0; }
 
 textarea { display: block; width: 100%; resize: none; border: 0; outline: none; background: transparent; overflow: hidden; margin: 0; }
 .block.editing { background: rgba(255, 244, 214, .35); box-shadow: 0 0 0 2px rgba(232, 207, 134, .6); }
@@ -195,14 +199,15 @@ body.handmath .katex .frac-line { border-bottom-width: 1.5px !important; border-
 /* ---------- print ---------- */
 @media print {
   html, body { overflow: visible; height: auto; background: #fff; }
-  #sidebar, #toolbar, #mathbar, #penbar, #tail, #report, .popover, .modal, .actions, .tag, #scrim { display: none !important; }
-  #main, #scroller { overflow: visible; padding: 0; display: block; }
-  #page { box-shadow: none; max-width: none; padding: 0 0 0 40px; background-color: #fff;
+  #sidebar, #toolbar, #mathbar, #penbar, #report, .popover, .modal, .actions, .tag, #scrim, #addPage, .rmpage, .pnum { display: none !important; }
+  #app, #main, #scroller { display: block; overflow: visible; height: auto; }
+  #pages { zoom: 1 !important; display: block; padding: 0; gap: 0; }
+  .sheet { box-shadow: none; border-radius: 0; margin: 0; break-after: page; overflow: hidden;
     -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  #page.paper-lined { background-image: repeating-linear-gradient(180deg, transparent 0, transparent calc(var(--line) - 1px), #dbe5f1 calc(var(--line) - 1px), #dbe5f1 var(--line)); }
+  .sheet:last-of-type { break-after: auto; }
   .block.editing { background: none; box-shadow: none; }
   .block.ink svg { outline: none !important; background: none !important; }
-  .block { break-inside: avoid; }
+}
 }
 
 #penbar { gap: 6px; }
@@ -231,3 +236,32 @@ body.handmath .katex .frac-line { border-bottom-width: 1.5px !important; border-
 #penbar .tool { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; flex: none; }
 #penbar .sizes { display: inline-flex; gap: 4px; flex: none; }
 #penbar .swatches { flex: none; }
+
+#penbar .toggle.on { background: #fff4d6; color: var(--ui); border-color: #e8cf86; box-shadow: inset 0 0 0 1px #e8cf86; }
+#penbar .sep { width: 1px; height: 26px; background: #d8d0bd; margin: 0 4px; flex: none; }
+.block.ink svg { touch-action: none; }
+
+/* ---------- phones ---------- */
+@media (max-width: 700px) {
+  .lbl { display: none; }
+  #toolbar { gap: 6px; padding: 6px 8px; }
+  .seg button { padding: 6px 10px; }
+  .pill { padding: 7px 11px; }
+  .icon { width: 36px; height: 36px; font-size: 20px; }
+  #penbar { padding: 6px 8px; gap: 4px; }
+  #penbar .tool { padding: 0 9px; height: 36px; }
+  #penbar .size { width: 34px; height: 36px; }
+  .swatch { width: 26px; height: 26px; }
+  .swatches { margin: 0 4px; gap: 4px; }
+  #inkHint { display: none; }
+  #pages { gap: 12px; padding-top: 8px; }
+  .popover { left: 8px; right: 8px; width: auto; }
+  #sidebar { width: 82vw; }
+  #btnConvert .lbl { display: none; }
+}
+@media (max-width: 440px) {
+  #btnRedo { display: none; }
+  #modeSeg button { padding: 6px 9px; }
+  #toolbar .grow { display: none; }
+}
+#scroller, #scroller * { touch-action: none; }

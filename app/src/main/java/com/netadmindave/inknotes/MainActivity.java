@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
+import android.view.InputDevice;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -306,14 +307,25 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** True when the device has a stylus digitizer (S Pen); phones like the Pixel return false. */
         @JavascriptInterface
-        public void printPdf(String title) {
+        public boolean hasStylus() {
+            for (int id : InputDevice.getDeviceIds()) {
+                InputDevice d = InputDevice.getDevice(id);
+                if (d != null && d.supportsSource(InputDevice.SOURCE_STYLUS)) return true;
+            }
+            return false;
+        }
+
+        @JavascriptInterface
+        public void printPdf(String title, String size) {
             runOnUiThread(() -> {
                 PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
                 String name = (title == null || title.trim().isEmpty()) ? "InkNotes" : title.trim();
                 PrintDocumentAdapter adapter = web.createPrintDocumentAdapter(name);
                 PrintAttributes attrs = new PrintAttributes.Builder()
-                        .setMediaSize(PrintAttributes.MediaSize.NA_LETTER)
+                        .setMediaSize("a4".equals(size) ? PrintAttributes.MediaSize.ISO_A4 : PrintAttributes.MediaSize.NA_LETTER)
+                        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                         .build();
                 pm.print(name, adapter, attrs);
             });

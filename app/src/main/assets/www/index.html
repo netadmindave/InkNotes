@@ -6,6 +6,7 @@
 <title>InkNotes</title>
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="style.css">
+<style id="pageStyle"></style>
 </head>
 <body>
 <div id="app">
@@ -28,12 +29,12 @@
     <header id="toolbar">
       <button id="btnMenu" class="icon" title="Notes">☰</button>
       <div class="seg" id="modeSeg" role="tablist" title="Handwriting converts to / new typing is">
-        <button data-mode="text" class="on">Aa Text</button>
-        <button data-mode="math">∑ Math</button>
+        <button data-mode="text" class="on">Aa<span class="lbl"> Text</span></button>
+        <button data-mode="math">∑<span class="lbl"> Math</span></button>
         <button data-mode="auto">Auto</button>
       </div>
-      <button id="btnConvert" class="pill primary" title="Convert handwriting">⇄ Convert</button>
-      <button id="btnClean" class="pill accent" title="Clean up writing">✨ Clean up</button>
+      <button id="btnConvert" class="pill primary" title="Convert handwriting">⇄<span class="lbl"> Convert</span></button>
+      <button id="btnClean" class="pill accent" title="Clean up writing">✨<span class="lbl"> Clean up</span></button>
       <span class="grow"></span>
       <button id="btnUndo" class="icon" title="Undo">↶</button>
       <button id="btnRedo" class="icon" title="Redo">↷</button>
@@ -42,11 +43,14 @@
 
     <div id="mathbar" hidden></div>
     <div id="penbar">
-      <button data-tool="pen" class="tool on" title="Pen">✒️ Pen</button>
-      <button data-tool="pencil" class="tool" title="Pencil">✏️ Pencil</button>
-      <button data-tool="hl" class="tool" title="Highlighter">🖍 Highlight</button>
-      <button data-tool="eraser" class="tool" title="Eraser (or hold the S Pen button)">⌫ Eraser</button>
-      <button data-tool="lasso" class="tool" title="Lasso select">◌ Lasso</button>
+      <button id="btnFinger" class="tool toggle" title="One finger writes (two fingers scroll)">☝️<span class="lbl"> Finger writes</span></button>
+      <button id="btnLock" class="tool toggle" title="Lock: two fingers to move the page">🔒<span class="lbl"> Lock</span></button>
+      <span class="sep"></span>
+      <button data-tool="pen" class="tool on" title="Pen">✒️<span class="lbl"> Pen</span></button>
+      <button data-tool="pencil" class="tool" title="Pencil">✏️<span class="lbl"> Pencil</span></button>
+      <button data-tool="hl" class="tool" title="Highlighter">🖍<span class="lbl"> Highlight</span></button>
+      <button data-tool="eraser" class="tool" title="Eraser (or hold the S Pen button)">⌫<span class="lbl"> Eraser</span></button>
+      <button data-tool="lasso" class="tool" title="Lasso select">◌<span class="lbl"> Lasso</span></button>
       <span class="swatches"></span>
       <span class="sizes">
         <button data-size="2.5" class="size">·</button>
@@ -58,12 +62,12 @@
     </div>
 
     <div id="scroller">
-      <article id="page" class="paper-lined">
-        <input id="title" placeholder="Untitled" autocomplete="off" spellcheck="true">
-        <div id="meta"></div>
-        <div id="blocks"></div>
-        <div id="tail" title="Write with the S Pen, or tap to type"><span>Write here with the S Pen — or tap to type…</span></div>
-      </article>
+      <div id="pages">
+        <div id="noteHead">
+          <input id="title" placeholder="Untitled" autocomplete="off" spellcheck="true">
+          <div id="meta"></div>
+        </div>
+      </div>
     </div>
 
     <div id="report" hidden></div>
@@ -72,11 +76,13 @@
   <div id="menu" class="popover" hidden>
     <div class="mh">Handwriting</div>
     <div class="row" id="fontRow"></div>
-    <div class="mh">Paper</div>
+    <div class="mh">Page</div>
+    <div class="row" id="sizeRow"></div>
     <div class="row" id="paperRow"></div>
+    <div class="mh">Zoom</div>
+    <div class="row" id="zoomRow"><button data-z="out">−</button><button data-z="fit">Fit width</button><button data-z="in">＋</button></div>
     <label class="chk"><input type="checkbox" id="optHandMath"> Handwritten-style formulas</label>
     <label class="chk"><input type="checkbox" id="optAutoMath"> Auto-detect math in text</label>
-    <label class="chk"><input type="checkbox" id="optPenOnly"> In ink areas, only the S Pen draws</label>
     <hr>
     <button class="mi" id="miPdf">Export PDF / Print</button>
     <button class="mi" id="miShare">Share as text (LaTeX)</button>
@@ -100,7 +106,9 @@
   <div id="help" class="modal" hidden>
     <div class="card">
       <h2>Writing in InkNotes</h2>
-      <p><b>Handwriting:</b> write anywhere with the S Pen — fingers scroll. Tap <b>⇄ Convert</b> (or lasso some strokes first) to turn it into neat text or a formula; the switch decides: <b>Aa Text</b>, <b>∑ Math</b> or <b>Auto</b> (spots formulas line by line). You can fix the result before inserting. Hold the S Pen side button to erase.</p>
+      <p><b>Pages:</b> notes are Letter (8.5×11) or A4 pages — pick in ⋮. Writing flows onto the next page; ＋ Add page adds a blank one. PDF export keeps the page size.</p>
+      <p><b>Fingers:</b> with <b>☝️ Finger writes</b> on (default on phones), one finger writes and two fingers scroll and pinch-zoom. With it off, one finger scrolls — unless <b>🔒 Lock</b> is on, then only two fingers move the page.</p>
+      <p><b>Handwriting:</b> write anywhere on the page. Tap <b>⇄ Convert</b> (or lasso some strokes first) to turn it into neat text or a formula; the switch decides: <b>Aa Text</b>, <b>∑ Math</b> or <b>Auto</b> (spots formulas line by line). You can fix the result before inserting. Hold the S Pen side button to erase.</p>
       <p><b>Typing:</b> tap the page with your finger. <b>Aa Text / ∑ Math</b> also switches what you type. Switching while you write splits off a new block at the cursor. In a Math block, <b>Enter</b> finishes the formula and goes back to text.</p>
       <p><b>Math syntax</b> (AsciiMath, or LaTeX if it starts with a backslash):</p>
       <table>

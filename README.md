@@ -1,8 +1,10 @@
 # InkNotes
 
-A handwriting-styled, math-aware notes app for Android, built for the Samsung Galaxy Tab S9+ and the S Pen. Everything works offline.
+A handwriting-styled, math-aware notes app for Android: Samsung Galaxy Tab S9+ with the S Pen, and phones like the Pixel 8 with finger writing. Everything except the one-time recognizer download works offline.
 
 ## Features
+- **Real pages**: Letter (8.5×11) or A4, chosen per note in the ⋮ menu. Content flows onto the next page; ＋ Add page adds a blank one. PDF export keeps the exact page size. Pinch or ⋮ → Zoom to zoom.
+- **Fingers**: ☝️ *Finger writes* (on by default when no pen is detected, e.g. Pixel 8) makes one finger write and two fingers scroll and pinch-zoom. 🔒 *Lock* means only two fingers move the page.
 - **Write anywhere with the S Pen** (Samsung Notes style). Pen, pencil and highlighter tools, 6 colours, 3 sizes, a stroke eraser (or hold the S Pen side button) and lasso selection. Pen pressure is used. The pen writes and fingers scroll, so your palm doesn't leave marks.
 - **⇄ Convert handwriting** into neat handwriting-font text or typeset formulas. The **Aa Text / ∑ Math / Auto** switch decides how it's read; Auto picks formulas out line by line. A preview lets you switch each piece between text and math, pick alternatives, or edit before inserting. Recognition is Google ML Kit Digital Ink, on-device (one-time ~20 MB model download). Formula layout (fractions, roots, exponents, subscripts, ∫/∑ limits) is InkNotes' own analyzer.
 - **Handwriting look**: text renders in a handwriting font (Caveat, Kalam, Patrick Hand or Shadows Into Light) on lined, grid, dot or plain paper.

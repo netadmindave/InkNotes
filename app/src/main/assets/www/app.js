@@ -32,7 +32,10 @@
     paper: store.getPref('paper') || 'lined',
     handMath: store.getPref('handMath') !== '0',
     autoMath: store.getPref('autoMath') !== '0',
-    penOnly: store.getPref('penOnly') !== '0',
+    size: store.getPref('size') || 'letter',
+    // no S Pen (e.g. Pixel) → one finger writes; with a pen, fingers scroll by default
+    fingerDraws: (() => { const v = store.getPref('fingerDraws'); if (v) return v === '1'; try { return !(A && A.hasStylus && A.hasStylus()); } catch (e) { return true; } })(),
+    lock: store.getPref('lock') === '1',
     mode: store.getPref('mode') || 'text',
     inkColor: store.getPref('inkColor') || '#1d3557',
     inkSize: parseFloat(store.getPref('inkSize') || '4'),
@@ -45,6 +48,11 @@
   const FONTS = [['caveat', 'Caveat', 'Caveat'], ['kalam', 'Kalam', 'Kalam'], ['patrick', 'Patrick Hand', 'Patrick'], ['shadows', 'Shadows Into Light', 'Shadows']];
   const PAPERS = [['lined', 'Lined'], ['grid', 'Grid'], ['dot', 'Dots'], ['plain', 'Plain']];
   const INK_COLORS = ['#1d3557', '#111111', '#c2410c', '#2f7d32', '#7b2cbf', '#f5c518'];
+  const SIZES = { letter: { w: 816, h: 1056, label: 'Letter 8.5×11', css: '8.5in 11in' }, a4: { w: 794, h: 1123, label: 'A4', css: '210mm 297mm' } };
+  const MARGIN = { t: 80, b: 56, l: 96, r: 56 };
+  const pageDim = () => SIZES[(note && note.size) || prefs.size] || SIZES.letter;
+  const contentW = () => pageDim().w - MARGIN.l - MARGIN.r;
+  const contentH = () => pageDim().h - MARGIN.t - MARGIN.b;
 
   function applyBodyClasses() {
     document.body.classList.remove(...FONTS.map(f => 'font-' + f[0]));
@@ -118,7 +126,7 @@
   function newNote(blocks, title) {
     finishEdit();
     if (note) saveNow();
-    note = { id: uid('n'), title: title || '', created: Date.now(), updated: Date.now(), paper: prefs.paper, blocks: blocks || [] };
+    note = { id: uid('n'), title: title || '', created: Date.now(), updated: Date.now(), paper: prefs.paper, size: prefs.size, blocks: blocks || [] };
     store.save(note.id, JSON.stringify(note));
     loadIndex();
     showNote();
@@ -132,15 +140,17 @@
     if (!note) return;
     note.id = id;
     note.blocks = note.blocks || [];
+    note.size = note.size || 'letter';
     showNote();
   }
 
   function showNote() {
     setPref('lastNote', note.id);
     $('#title').value = note.title || '';
-    $('#page').className = 'paper-' + (note.paper || prefs.paper);
     $('#meta').textContent = note.updated ? 'Edited ' + fmtDate(note.updated) : '';
     history = [snapshot()]; hIdx = 0; updateUndo();
+    userZoom = 1;
+    applyZoom();
     renderBlocks();
     renderList();
     $('#scroller').scrollTop = 0;
@@ -148,7 +158,7 @@
 
   /* ---------------- undo / redo ---------------- */
   let history = [], hIdx = 0;
-  const snapshot = () => JSON.stringify({ title: note.title, blocks: note.blocks, paper: note.paper });
+  const snapshot = () => JSON.stringify({ title: note.title, blocks: note.blocks, paper: note.paper, size: note.size });
   function commit() {
     if (!note) return;
     const s = snapshot();
@@ -162,9 +172,9 @@
   }
   function restore(s) {
     const o = JSON.parse(s);
-    note.title = o.title; note.blocks = o.blocks; note.paper = o.paper;
+    note.title = o.title; note.blocks = o.blocks; note.paper = o.paper; note.size = o.size || note.size;
     $('#title').value = note.title || '';
-    $('#page').className = 'paper-' + (note.paper || prefs.paper);
+    applyZoom();
     renderBlocks();
     scheduleSave();
     updateUndo();
@@ -174,7 +184,7 @@
   function updateUndo() { $('#btnUndo').disabled = hIdx <= 0; $('#btnRedo').disabled = hIdx >= history.length - 1; }
 
   /* ---------------- block rendering ---------------- */
-  const blocksEl = $('#blocks');
+  const pagesEl = $('#pages');
   let editing = null;  // {id, el, type, detach}
 
   function blockById(id) { return note.blocks.find(b => b.id === id); }
@@ -183,8 +193,101 @@
   function renderBlocks() {
     editing = null;
     hideBars();
-    blocksEl.innerHTML = '';
-    for (const b of note.blocks) blocksEl.appendChild(viewEl(b));
+    layout(note.blocks.map(b => b.type === 'break' ? null : viewEl(b)));
+  }
+  /** Re-paginate using the existing block elements (after something changed height). */
+  function relayout() {
+    if (editing) return;
+    layout(note.blocks.map(b => b.type === 'break' ? null : (pagesEl.querySelector('.block[data-id="' + b.id + '"]') || viewEl(b))));
+  }
+
+  /* ---------------- pages ---------------- */
+  function layout(els) {
+    const d = pageDim(), CH = contentH();
+    const sc = $('#scroller'), keepTop = sc.scrollTop, keepLeft = sc.scrollLeft;
+    const z = pagesEl.style.zoom;
+    pagesEl.style.zoom = 1;                       // measure in page units
+    const header = $('#noteHead');
+    pagesEl.innerHTML = '';
+    $('#pageStyle').textContent = '@page { size: ' + d.css + '; margin: 0; }';
+    let sheet, content, pageBlocks, pageNo = 0;
+    const newSheet = (breakId) => {
+      sheet = document.createElement('div');
+      sheet.className = 'sheet paper-' + (note.paper || prefs.paper);
+      sheet.style.width = d.w + 'px';
+      sheet.style.minHeight = d.h + 'px';
+      content = document.createElement('div');
+      content.className = 'content';
+      content.style.minHeight = CH + 'px';
+      sheet.appendChild(content);
+      const num = document.createElement('div');
+      num.className = 'pnum'; num.textContent = String(++pageNo);
+      sheet.appendChild(num);
+      pagesEl.appendChild(sheet);
+      sheet._breakId = breakId || null;
+      pageBlocks = [];
+      if (pageNo === 1) content.appendChild(header);
+    };
+    const closeSheet = (at) => {
+      const pad = document.createElement('div');
+      pad.className = 'pad';
+      pad._at = at;
+      pad._last = pageBlocks[pageBlocks.length - 1] || null;
+      content.appendChild(pad);
+      if (!pageBlocks.length && sheet._breakId) {
+        const rm = document.createElement('button');
+        rm.className = 'pill rmpage'; rm.textContent = 'Remove blank page';
+        const bid = sheet._breakId;
+        rm.onclick = () => { const i = blockIndex(bid); if (i >= 0) { note.blocks.splice(i, 1); renderBlocks(); commit(); } };
+        pad.appendChild(rm);
+      }
+    };
+    newSheet();
+    note.blocks.forEach((b, i) => {
+      if (b.type === 'break') { closeSheet(i); newSheet(b.id); return; }
+      const el = els[i];
+      content.appendChild(el);
+      let bottom = el.offsetTop + el.offsetHeight;
+      if (bottom > CH && (pageBlocks.length || pageNo === 1 && el.offsetTop > 140)) {
+        closeSheet(i); newSheet();
+        content.appendChild(el);
+        bottom = el.offsetTop + el.offsetHeight;
+      }
+      if (b.type === 'ink') {
+        const k = (b.w || contentW()) / contentW();
+        el._maxH = Math.max(80, (CH - el.offsetTop) * k);
+        el._h0 = b.h;
+      }
+      el._page = pageNo;
+      pageBlocks.push(b);
+    });
+    closeSheet(note.blocks.length);
+    const add = document.createElement('button');
+    add.id = 'addPage'; add.className = 'pill'; add.textContent = '＋ Add page';
+    add.onclick = () => addPage(true);
+    pagesEl.appendChild(add);
+    pagesEl.style.zoom = z;
+    sc.scrollTop = keepTop; sc.scrollLeft = keepLeft;
+  }
+
+  function addPage(scroll) {
+    finishEdit();
+    note.blocks.push({ id: uid(), type: 'break' });
+    renderBlocks();
+    commit();
+    if (scroll) { const sh = $$('.sheet', pagesEl).pop(); sh && sh.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  }
+
+  /* ---------------- zoom ---------------- */
+  let userZoom = 1, curZoom = 1;
+  function fitZoom() {
+    const sc = $('#scroller');
+    const avail = sc.clientWidth - (sc.clientWidth < 700 ? 8 : 40);
+    return Math.max(0.2, Math.min(1.6, avail / pageDim().w));
+  }
+  function applyZoom() {
+    curZoom = fitZoom() * userZoom;
+    pagesEl.style.zoom = curZoom;
   }
 
   function viewEl(b) {
@@ -210,11 +313,14 @@
       const sel = inkSel && inkSel.id === b.id ? inkSel.idx : null;
       Ink.render(svg, b, sel);
       el._svg = svg;
-      el._ink = Ink.attach(svg, b, {
-        scroller: $('#scroller'),
-        onChange: () => { lastInkId = b.id; if (inkSel && inkSel.id === b.id) { inkSel = null; rerenderBlock(b.id); } commit(); },
-        onTap: () => selectInk(b.id, null),
-        onSelect: (idx) => { if (idx.length) selectInk(b.id, new Set(idx), true); else clearInkSel(); }
+      el._ink = Ink.session(svg, b, {
+        onChange: () => {
+          lastInkId = b.id;
+          if (inkSel && inkSel.id === b.id) { inkSel = null; rerenderBlock(b.id); }
+          afterInk(b);
+        },
+        onSelect: (idx) => { if (idx.length) selectInk(b.id, new Set(idx), true); else clearInkSel(); },
+        maxH: () => { const cur = pagesEl.querySelector('.block[data-id="' + b.id + '"]'); return (cur && cur._maxH) || 1e9; }
       });
       if (inkSel && inkSel.id === b.id) { el.classList.add('selected'); el.appendChild(inkActions(b)); }
     }
@@ -230,10 +336,11 @@
 
   function rerenderBlock(id) {
     const b = blockById(id);
-    const old = blocksEl.querySelector('.block[data-id="' + id + '"]');
+    const old = pagesEl.querySelector('.block[data-id="' + id + '"]');
     if (!b) { old && old.remove(); return; }
     const el = viewEl(b);
-    if (old) old.replaceWith(el); else blocksEl.appendChild(el);
+    if (old) { el._maxH = old._maxH; el._h0 = old._h0; el._page = old._page; old.replaceWith(el); }
+    else relayout();
     return el;
   }
 
@@ -273,7 +380,7 @@
     if (!b) return;
     if (b.type === 'ink') { selectInk(id, null, true); return; }
     clearInkSel();
-    const old = blocksEl.querySelector('.block[data-id="' + id + '"]');
+    const old = pagesEl.querySelector('.block[data-id="' + id + '"]');
     const el = document.createElement('div');
     el.className = 'block ' + b.type + ' editing';
     el.dataset.id = id;
@@ -355,6 +462,17 @@
     commit();
     setModeUI(prefs.mode);
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    relayout();
+  }
+
+  /** After a stroke: save, re-paginate if the area grew, and start a fresh page when the last one fills up. */
+  function afterInk(b) {
+    commit();
+    const el = pagesEl.querySelector('.block[data-id="' + b.id + '"]');
+    if (!el) return;
+    const last = note.blocks[note.blocks.length - 1];
+    if (last === b && el._maxH && b.h >= el._maxH - 30) { note.blocks.push({ id: uid(), type: 'break' }); relayout(); commit(); return; }
+    if (b.h !== el._h0) relayout();
   }
 
   /* ---------------- ink selection ---------------- */
@@ -393,7 +511,7 @@
     } else {
       btn('↑', () => moveBlock(b.id, -1));
       btn('↓', () => moveBlock(b.id, 1));
-      btn('Taller', () => { b.h += 200; rerenderBlock(b.id); commit(); });
+      btn('Taller', () => { b.h += 200; rerenderBlock(b.id); relayout(); commit(); });
       btn('Delete', () => { inkSel = null; deleteBlock(b.id); }, 'danger');
     }
     btn('✕', () => clearInkSel());
@@ -405,12 +523,10 @@
   }
   function insertAt(type, i, src) {
     const b = { id: uid(), type, src: src || '' };
-    if (type === 'ink') { b.src = undefined; b.strokes = []; b.w = Ink.W; b.h = 260; }
+    if (type === 'ink') { b.src = undefined; b.strokes = []; b.w = contentW(); b.h = 200; }
     i = Math.max(0, Math.min(i, note.blocks.length));
     note.blocks.splice(i, 0, b);
-    const el = viewEl(b);
-    const ref = blocksEl.children[i];
-    blocksEl.insertBefore(el, ref || null);
+    renderBlocks();
     return b;
   }
 
@@ -461,7 +577,7 @@
     if (editing) { editing.detach && editing.detach(); }
     b.type = b.type === 'text' ? 'math' : 'text';
     editing = null;
-    const old = blocksEl.querySelector('.block[data-id="' + id + '"]');
+    const old = pagesEl.querySelector('.block[data-id="' + id + '"]');
     old.replaceWith(viewEl(b));
     hideBars();
     commit();
@@ -474,8 +590,9 @@
     if (editing && editing.id === id) { editing.detach && editing.detach(); editing = null; hideBars(); }
     if (inkSel && inkSel.id === id) inkSel = null;
     note.blocks.splice(i, 1);
-    const el = blocksEl.querySelector('.block[data-id="' + id + '"]');
+    const el = pagesEl.querySelector('.block[data-id="' + id + '"]');
     el && el.remove();
+    relayout();
     commit();
     toast('Block deleted — ↶ to undo');
   }
@@ -543,7 +660,9 @@
     }
   }
   function buildPenbar() {
-    Ink.tool.color = prefs.inkColor; Ink.tool.size = prefs.inkSize; Ink.tool.penOnly = prefs.penOnly;
+    Ink.tool.color = prefs.inkColor; Ink.tool.size = prefs.inkSize;
+    $('#btnFinger').onclick = () => { setPref('fingerDraws', !prefs.fingerDraws); syncTools(); toast(prefs.fingerDraws ? 'One finger writes · two fingers scroll' : (prefs.lock ? 'Fingers: two to move the page' : 'One finger scrolls')); };
+    $('#btnLock').onclick = () => { setPref('lock', !prefs.lock); syncTools(); toast(prefs.lock ? 'Page locked: use two fingers to move it' : 'Page unlocked'); };
     const sw = $('#penbar .swatches');
     for (const c of INK_COLORS) {
       const x = document.createElement('button');
@@ -556,18 +675,22 @@
       };
       sw.appendChild(x);
     }
-    $$('#penbar .tool').forEach(t => t.onclick = () => { Ink.tool.kind = t.dataset.tool; syncTools(); });
+    $$('#penbar .tool[data-tool]').forEach(t => t.onclick = () => { Ink.tool.kind = t.dataset.tool; syncTools(); });
     $$('#penbar .size').forEach(t => {
       t.classList.toggle('on', parseFloat(t.dataset.size) === prefs.inkSize);
       t.onclick = () => { setPref('inkSize', parseFloat(t.dataset.size)); Ink.tool.size = prefs.inkSize; $$('#penbar .size').forEach(s => s.classList.toggle('on', s === t)); };
     });
     syncTools();
   }
-  const HINTS = { pen: 'Write anywhere with the S Pen · fingers scroll', pencil: 'Pencil', hl: 'Highlighter — draws under your writing',
+  const HINTS = { pen: 'Write anywhere on the page', pencil: 'Pencil', hl: 'Highlighter — draws under your writing',
     eraser: 'Erase whole strokes (or hold the S Pen button any time)', lasso: 'Circle strokes to select, then Convert' };
   function syncTools() {
-    $$('#penbar .tool').forEach(t => t.classList.toggle('on', t.dataset.tool === Ink.tool.kind));
-    $('#inkHint').textContent = HINTS[Ink.tool.kind] || '';
+    $$('#penbar .tool[data-tool]').forEach(t => t.classList.toggle('on', t.dataset.tool === Ink.tool.kind));
+    $('#btnFinger').classList.toggle('on', prefs.fingerDraws);
+    $('#btnLock').classList.toggle('on', prefs.lock);
+    $('#btnLock').disabled = false;
+    const fingers = prefs.fingerDraws ? ' · 1 finger writes, 2 scroll' : prefs.lock ? ' · 2 fingers move the page' : ' · fingers scroll';
+    $('#inkHint').textContent = (HINTS[Ink.tool.kind] || '') + fingers;
   }
   function showMathbar() { $('#mathbar').hidden = false; }
   function hideBars() { $('#mathbar').hidden = true; }
@@ -660,60 +783,173 @@
     });
   }
 
-  /* ---------------- writing pad: the S Pen writes anywhere below the last block ---------------- */
-  function wireTail() {
-    const tail = $('#tail');
-    let finger = null;
-    tail.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'touch') {
-        finger = { id: e.pointerId, x0: e.clientX, y0: e.clientY, y: e.clientY, t: e.timeStamp, v: 0 };
-        try { tail.setPointerCapture(e.pointerId); } catch (err) { }
-        return;
+  /* ---------------- input: pen, finger, two fingers ----------------
+   * Pen (or mouse): always writes in ink areas and empty page space.
+   * One finger: writes when "finger draws" is on; otherwise scrolls (or, with 🔒, does nothing but tap).
+   * Two fingers: always scroll and pinch-zoom.
+   */
+  const touches = new Map();
+  let g = null;                 // current gesture
+  let suppressClickUntil = 0;
+
+  const NATIVE = 'button, .actions, .modal, #report, label, select, input[type=checkbox], .rmpage, #addPage';
+  const drawTarget = (t) => t.closest('.block.ink') || t.closest('.pad');
+
+  /** Start a stroke for pointer event e on an ink area or empty page space. Returns the session or null. */
+  function beginDraw(e, target) {
+    finishEdit();
+    if (inkSel && !(target.closest && target.closest('.block.ink.selected'))) clearInkSel();
+    let el = target.closest('.block.ink');
+    if (!el) {
+      const pad = target.closest('.pad');
+      if (!pad) return null;
+      const pr = pad.getBoundingClientRect();
+      const scale = pr.width / pad.offsetWidth || curZoom;            // screen px per page px
+      const yIn = (e.clientY - pr.top) / scale;                        // page px below the last block
+      const padH = pad.offsetHeight;
+      const last = pad._last;
+      if (last && last.type === 'ink') {
+        el = pagesEl.querySelector('.block[data-id="' + last.id + '"]');
+        const k = last.w / contentW();
+        last.h = Math.min(el._maxH || 1e9, Math.ceil((el.offsetHeight + yIn + 140) * k));
+        Ink.setup(el._svg, last);
+      } else {
+        const nb = { id: uid(), type: 'ink', strokes: [], w: contentW(), h: Math.max(120, Math.min(padH, Math.ceil(yIn + 140))) };
+        note.blocks.splice(pad._at, 0, nb);
+        renderBlocks();
+        el = pagesEl.querySelector('.block[data-id="' + nb.id + '"]');
       }
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      e.preventDefault();
-      finishEdit();
-      clearInkSel();
-      let b = note.blocks[note.blocks.length - 1];
-      if (!b || b.type !== 'ink') b = insertBlock('ink');
-      const el = blocksEl.querySelector('.block[data-id="' + b.id + '"]');
-      const r = el._svg.getBoundingClientRect();
-      const need = (e.clientY - r.top) * (b.w / r.width) + 140;
-      if (need > b.h) { b.h = Math.ceil(need); Ink.setup(el._svg, b); }
-      el._ink.begin(e);
-    });
-    tail.addEventListener('pointermove', (e) => {
-      if (!finger || e.pointerId !== finger.id) return;
-      const dy = e.clientY - finger.y, dt = Math.max(1, e.timeStamp - finger.t);
-      $('#scroller').scrollTop -= dy;
-      finger.v = 0.7 * finger.v + 0.3 * dy / dt; finger.y = e.clientY; finger.t = e.timeStamp;
-    });
-    const end = (e) => {
-      if (!finger || e.pointerId !== finger.id) return;
-      const moved = Math.hypot(e.clientX - finger.x0, e.clientY - finger.y0);
-      if (moved >= 8 && Math.abs(finger.v) > 0.1) Ink.fling($('#scroller'), finger.v);
-      finger = null;
-      if (moved < 8 && e.type === 'pointerup') typeAtEnd();
-    };
-    tail.addEventListener('pointerup', end);
-    tail.addEventListener('pointercancel', end);
+    }
+    if (!el || !el._ink) return null;
+    el._ink.start(e);
+    return el._ink;
   }
 
-  function typeAtEnd() {
-    const last = note.blocks[note.blocks.length - 1];
-    const type = prefs.mode === 'math' ? 'math' : 'text';
-    if (last && editing && editing.id === last.id) return;
+  function dropEmptyInk(sess) {
+    if (sess && sess.block && !sess.block.strokes.length) {
+      const i = blockIndex(sess.block.id);
+      if (i >= 0) { note.blocks.splice(i, 1); renderBlocks(); }
+    }
+  }
+
+  function typeAtPad(pad) {
     finishEdit();
     clearInkSel();
-    const b = insertBlock(type);
+    const type = prefs.mode === 'math' ? 'math' : 'text';
+    const b = insertAt(type, pad._at);
     startEdit(b.id);
+  }
+
+  function wireGestures() {
+    const sc = $('#scroller');
+    sc.addEventListener('pointerdown', (e) => {
+      if (e.target.closest(NATIVE)) return;
+      Ink.stopFling();
+      const isPen = e.pointerType === 'pen' || (e.pointerType === 'mouse' && e.button === 0);
+      if (isPen) {
+        if (touches.size) return;
+        const t = drawTarget(e.target);
+        if (!t) return;                                   // pen on typed text: a tap edits it
+        e.preventDefault();
+        const sess = beginDraw(e, t);
+        if (sess) g = { type: 'draw', id: e.pointerId, sess };
+        return;
+      }
+      if (e.pointerType !== 'touch') return;
+      if (e.isPrimary) { touches.clear(); g = null; }        // first finger of a new gesture: forget stale state
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 1) {
+        const t = drawTarget(e.target);
+        const base = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: e.timeStamp, t: e.timeStamp, vx: 0, vy: 0, moved: false, target: e.target };
+        if (prefs.fingerDraws && t && !e.target.closest('textarea, input')) g = Object.assign(base, { type: 'fdraw', e0: e, sess: null });
+        else if (prefs.lock) g = Object.assign(base, { type: 'tap' });
+        else g = Object.assign(base, { type: 'pan' });
+      } else if (touches.size === 2) {
+        if (g && g.type === 'fdraw' && g.sess) { g.sess.cancel(); dropEmptyInk(g.sess); }
+        const [p1, p2] = [...touches.values()];
+        const r = sc.getBoundingClientRect();
+        const mx = (p1.x + p2.x) / 2 - r.left, my = (p1.y + p2.y) / 2 - r.top;
+        g = { type: 'pinch', d0: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1, z0: userZoom, zoom0: curZoom,
+          cx: (sc.scrollLeft + mx) / curZoom, cy: (sc.scrollTop + my) / curZoom, mx, my };
+        suppressClickUntil = Date.now() + 400;
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (!g) return;
+      if (g.type === 'draw' && e.pointerId === g.id) { e.preventDefault(); g.sess.move(e); return; }
+      if (e.pointerId !== g.id && g.type !== 'pinch') return;
+      if (g.type === 'pinch') {
+        if (touches.size < 2) return;
+        const [p1, p2] = [...touches.values()];
+        const r = sc.getBoundingClientRect();
+        const mx = (p1.x + p2.x) / 2 - r.left, my = (p1.y + p2.y) / 2 - r.top;
+        const ratio = Math.hypot(p1.x - p2.x, p1.y - p2.y) / g.d0;
+        userZoom = Math.max(0.6, Math.min(4, g.z0 * ratio));
+        applyZoom();
+        sc.scrollLeft = g.cx * curZoom - mx;
+        sc.scrollTop = g.cy * curZoom - my;
+        return;
+      }
+      const dx = e.clientX - g.x, dy = e.clientY - g.y, dt = Math.max(1, e.timeStamp - g.t);
+      if (Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > 6) g.moved = true;
+      if (g.type === 'fdraw') {
+        if (!g.sess && g.moved) { g.sess = beginDraw(g.e0, g.target); if (!g.sess) { g = null; return; } }
+        if (g.sess) g.sess.move(e);
+      } else if (g.type === 'pan') {
+        sc.scrollLeft -= dx; sc.scrollTop -= dy;
+        g.vx = 0.7 * g.vx + 0.3 * dx / dt; g.vy = 0.7 * g.vy + 0.3 * dy / dt;
+      }
+      g.x = e.clientX; g.y = e.clientY; g.t = e.timeStamp;
+    }, { passive: false });
+
+    const up = (e) => {
+      const wasTouch = touches.delete(e.pointerId);
+      if (!g) return;
+      if (g.type === 'pinch') { if (!touches.size) g = null; return; }
+      if (e.pointerId !== g.id) return;
+      const cur = g; g = null;
+      if (cur.type === 'draw') { cur.sess.end(e); return; }
+      if (cur.type === 'fdraw') {
+        if (cur.sess) { cur.sess.end(e); return; }
+        if (e.type !== 'pointerup') return;
+        // a tap: dot on ink, typing on empty space
+        if (cur.target.closest('.block.ink')) { const s2 = beginDraw(cur.e0, cur.target); if (s2) s2.end(e); }
+        else if (cur.target.closest('.pad')) typeAtPad(cur.target.closest('.pad'));
+        return;
+      }
+      if (cur.moved) {
+        suppressClickUntil = Date.now() + 350;
+        if (cur.type === 'pan' && Math.abs(cur.vx) + Math.abs(cur.vy) > 0.15) Ink.fling(sc, cur.vx, cur.vy);
+        return;
+      }
+      if (e.type !== 'pointerup' || !wasTouch) return;
+      // finger tap without drawing
+      const ink = cur.target.closest('.block.ink');
+      if (ink) selectInk(ink.dataset.id, null);
+      else if (cur.target.closest('.pad')) typeAtPad(cur.target.closest('.pad'));
+    };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    document.addEventListener('click', (e) => {
+      if (Date.now() < suppressClickUntil && e.target.closest('#scroller')) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+    // mouse / trackpad: ctrl+wheel zooms
+    sc.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      userZoom = Math.max(0.6, Math.min(4, userZoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+      applyZoom();
+    }, { passive: false });
+    window.addEventListener('resize', () => { applyZoom(); });
   }
 
   /* ---------------- convert handwriting ---------------- */
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   function setBusy(on, label) {
     $('#btnConvert').classList.toggle('busy', on);
-    $('#btnConvert').textContent = on ? (label || 'Reading…') : '⇄ Convert';
+    $('#btnConvert').innerHTML = on ? (label || 'Reading…') : '⇄<span class="lbl"> Convert</span>';
   }
 
   async function ensureModel() {
@@ -906,20 +1142,36 @@
       x.textContent = label; x.dataset.p = k;
       x.onclick = () => {
         note.paper = k; setPref('paper', k);
-        $('#page').className = 'paper-' + k;
+        $$('.sheet', pagesEl).forEach(sh => { sh.className = 'sheet paper-' + k; });
         $$('#paperRow button').forEach(y => y.classList.toggle('on', y === x));
         commit();
       };
       pr.appendChild(x);
     }
+    const sr = $('#sizeRow');
+    for (const k of Object.keys(SIZES)) {
+      const x = document.createElement('button');
+      x.textContent = SIZES[k].label; x.dataset.s = k;
+      x.onclick = () => {
+        finishEdit();
+        note.size = k; setPref('size', k);
+        $$('#sizeRow button').forEach(y => y.classList.toggle('on', y === x));
+        applyZoom(); renderBlocks(); commit();
+      };
+      sr.appendChild(x);
+    }
+    $$('#zoomRow button').forEach(x => x.onclick = () => {
+      const z = x.dataset.z;
+      userZoom = z === 'fit' ? 1 : Math.max(0.6, Math.min(4, userZoom * (z === 'in' ? 1.25 : 0.8)));
+      applyZoom();
+    });
     const bind = (id, key, after) => {
       const c = $(id); c.checked = prefs[key];
       c.onchange = () => { setPref(key, c.checked); applyBodyClasses(); after && after(); };
     };
     bind('#optHandMath', 'handMath', () => renderBlocks());
     bind('#optAutoMath', 'autoMath', () => renderBlocks());
-    bind('#optPenOnly', 'penOnly', () => { Ink.tool.penOnly = prefs.penOnly; });
-    $('#miPdf').onclick = () => { closeMenu(); finishEdit(); saveNow(); setTimeout(() => A ? A.printPdf(note.title || 'InkNotes') : window.print(), 150); };
+    $('#miPdf').onclick = () => { closeMenu(); finishEdit(); saveNow(); setTimeout(() => A ? A.printPdf(note.title || 'InkNotes', note.size || 'letter') : window.print(), 150); };
     $('#miShare').onclick = () => { closeMenu(); finishEdit(); const md = toMarkdown(); if (A) A.shareText(note.title || 'Note', md); else console.log(md); };
     $('#miHelp').onclick = () => { closeMenu(); openHelp(); };
     $('#miDelete').onclick = async () => {
@@ -935,6 +1187,7 @@
   }
   function openMenu() {
     $$('#paperRow button').forEach(y => y.classList.toggle('on', y.dataset.p === (note.paper || prefs.paper)));
+    $$('#sizeRow button').forEach(y => y.classList.toggle('on', y.dataset.s === (note.size || prefs.size)));
     $('#menu').hidden = false;
   }
   function closeMenu() { $('#menu').hidden = true; }
@@ -947,11 +1200,10 @@
   /* ---------------- welcome note ---------------- */
   function welcome() {
     const blocks = [
-      { id: uid(), type: 'text', src: '# Write with the S Pen\nWrite anywhere below with the pen — fingers scroll. Then tap **⇄ Convert**: your handwriting becomes neat text like this, and formulas become typeset math. The **Aa Text / ∑ Math / Auto** switch decides how it is read, and you can fix anything before it is inserted.\n[ ] Try it: write a sentence, then x^2 + y^2 = r^2 on the next line, and Convert with Auto' },
-      { id: uid(), type: 'text', src: '# Pen tools\n- Pen, pencil and highlighter, 6 colours, 3 sizes\n- Hold the S Pen side button to erase, or pick the eraser\n- Lasso strokes to convert, smooth or delete just those' },
-      { id: uid(), type: 'text', src: '# Typing\nTap the page with a finger to type. teh app tidies spelling , spacing and capitals when you tap ✨ Clean up.\nmath inside sentences is spotted automatically: E = mc^2 and a^2 + b^2 = c^2.' },
-      { id: uid(), type: 'math', src: 'int_0^oo e^(-x^2) dx = sqrt(pi)/2' },
-      { id: uid(), type: 'math', src: '(dn)/(dT) ~~ 1.2 xx 10^-5 K^-1' }
+      { id: uid(), type: 'text', src: '# Write anywhere\nWrite on the page with the S Pen or your finger, then tap **⇄ Convert**: your handwriting becomes neat text like this, and formulas become typeset math. **Aa Text / ∑ Math / Auto** decides how it is read, and you can fix anything before it goes in.\n[ ] Try it: write a sentence, then x^2 + y^2 = r^2 below it, and Convert with Auto' },
+      { id: uid(), type: 'text', src: '# Fingers & pages\n- ☝️ Finger writes: one finger writes, two fingers scroll and pinch-zoom\n- 🔒 Lock: only two fingers move the page\n- Pages are Letter or A4 (⋮ menu); writing flows onto the next page' },
+      { id: uid(), type: 'text', src: '# Typing\nTap empty space to type. teh app tidies spelling , spacing and capitals when you tap ✨ Clean up.\nmath inside sentences is spotted automatically: E = mc^2 and a^2 + b^2 = c^2.' },
+      { id: uid(), type: 'math', src: 'int_0^oo e^(-x^2) dx = sqrt(pi)/2' }
     ];
     return newNote(blocks, 'Welcome to InkNotes');
   }
@@ -964,7 +1216,7 @@
     $('#btnConvert').onclick = () => {
       if (inkSel) return convertInk(inkSel.id, inkSel.idx);
       const inks = note.blocks.filter(b => b.type === 'ink' && b.strokes.length);
-      if (!inks.length) { toast('Write something with the S Pen first'); return; }
+      if (!inks.length) { toast('Write something on the page first'); return; }
       const target = inks.find(b => b.id === lastInkId) || inks[inks.length - 1];
       convertInk(target.id, null);
     };
@@ -993,17 +1245,23 @@
         else startEdit(insertBlock(prefs.mode === 'math' ? 'math' : 'text').id);
       }
     });
-    wireTail();
+    wireGestures();
     // tap outside the block being edited finishes it
     document.addEventListener('pointerdown', (e) => {
       if (!$('#menu').hidden && !e.target.closest('#menu') && !e.target.closest('#btnMore')) closeMenu();
-      if (!editing) return;
       if (inkSel && !e.target.closest('.block.ink.selected, #toolbar, #penbar, .modal, #report')) clearInkSel();
-      if (e.target.closest('.block.editing, #toolbar, #mathbar, #penbar, #report, #menu, .modal, #tail')) return;
+      if (!editing) return;
+      if (e.target.closest('.block.editing, #toolbar, #mathbar, #penbar, #report, #menu, .modal, .pad')) return;
       if (e.target.closest('.block')) return; // the click handler on that block switches editing
-      if (e.target.closest('#page') || e.target.closest('#scroller')) finishEdit();
+      if (e.target.closest('#scroller') && e.pointerType !== 'touch') finishEdit();
     }, true);
     window.addEventListener('resize', () => { if (editing && editing.ta) autoGrow(editing.ta); });
+    // finger taps on the page close the editor (pans don't)
+    document.addEventListener('click', (e) => {
+      if (!editing || !e.target.closest('#scroller')) return;
+      if (e.target.closest('.block, .pad, ' + NATIVE)) return;
+      finishEdit();
+    });
   }
 
   window.InkNotes = {

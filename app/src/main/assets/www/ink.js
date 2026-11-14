@@ -1,5 +1,5 @@
 /* ink.js — S Pen handwriting areas, stored as vector strokes.
- * Pen draws; finger scrolls (with momentum) or taps. Tools: pen, pencil, highlighter, eraser, lasso.
+ * Tools: pen, pencil, highlighter, eraser, lasso. Input routing (pen / finger / two-finger) lives in app.js.
  * Stroke: {c: colour, s: size, k: kind ('' | 'pc' | 'hl'), p: [[x, y, pressure, t], ...]}
  */
 (function () {
@@ -7,7 +7,7 @@
   const NS = 'http://www.w3.org/2000/svg';
   const W = 900; // logical width of every ink area
 
-  const tool = { kind: 'pen', color: '#1d3557', size: 4, penOnly: true };
+  const tool = { kind: 'pen', color: '#1d3557', size: 4 };
 
   function pathFromOutline(pts) {
     if (!pts.length) return '';
@@ -105,28 +105,30 @@
     return inside;
   }
 
-  /* -------- finger scrolling with momentum -------- */
+  /* -------- momentum scrolling (used by the app's gesture handler) -------- */
   let flingRaf = 0;
-  function fling(scroller, v) {
+  function fling(scroller, vx, vy) {
     cancelAnimationFrame(flingRaf);
     let last = performance.now();
     const step = (now) => {
       const dt = now - last; last = now;
-      scroller.scrollTop -= v * dt;
-      v *= Math.pow(0.995, dt);
-      if (Math.abs(v) > 0.02) flingRaf = requestAnimationFrame(step);
+      scroller.scrollTop -= vy * dt;
+      scroller.scrollLeft -= vx * dt;
+      const k = Math.pow(0.995, dt);
+      vx *= k; vy *= k;
+      if (Math.abs(vx) + Math.abs(vy) > 0.03) flingRaf = requestAnimationFrame(step);
     };
     flingRaf = requestAnimationFrame(step);
   }
+  const stopFling = () => cancelAnimationFrame(flingRaf);
 
   /**
-   * Make an ink area live. opts: {scroller, onChange(), onTap(), onSelect(indices[]), selected() -> Set}
-   * Returns {begin(e)} so a stroke started elsewhere (the page pad) can continue here.
+   * A drawing session on one ink area. The app's central gesture handler feeds it pointer events.
+   * opts: {onChange(), onSelect(indices[]), maxH() -> logical height limit}
    */
-  function attach(svg, block, opts) {
+  function session(svg, block, opts) {
     setup(svg, block);
-    let cur = null, curPath = null, mode = null, activeId = null, t0 = 0;
-    let finger = null, lasso = null, lassoEl = null;
+    let cur = null, curPath = null, mode = null, t0 = 0, lasso = null, lassoEl = null;
 
     const toLocal = (e) => {
       const r = svg.getBoundingClientRect();
@@ -142,10 +144,8 @@
       if (block.strokes.length !== before) { render(svg, block); opts.onChange && opts.onChange(); }
     }
 
-    function begin(e) {
-      activeId = e.pointerId;
-      try { svg.setPointerCapture(e.pointerId); } catch (err) { }
-      const sideButton = (e.buttons & 2) === 2 || (e.buttons & 32) === 32 || e.button === 5;
+    function start(e) {
+      const sideButton = e.pointerType === 'pen' && ((e.buttons & 2) === 2 || (e.buttons & 32) === 32 || e.button === 5);
       mode = sideButton || tool.kind === 'eraser' ? 'erase' : tool.kind === 'lasso' ? 'lasso' : 'draw';
       const [x, y] = toLocal(e);
       t0 = e.timeStamp;
@@ -165,29 +165,7 @@
       svg.parentElement.classList.remove('empty');
     }
 
-    function down(e) {
-      if (activeId !== null && e.pointerId !== activeId) return;
-      if (e.pointerType === 'touch' && tool.penOnly || e.pointerType === 'touch' && tool.kind === 'scroll') {
-        cancelAnimationFrame(flingRaf);
-        finger = { id: e.pointerId, y: e.clientY, x: e.clientX, y0: e.clientY, x0: e.clientX, t: e.timeStamp, v: 0 };
-        activeId = e.pointerId;
-        try { svg.setPointerCapture(e.pointerId); } catch (err) { }
-        return;
-      }
-      e.preventDefault();
-      begin(e);
-    }
-
     function move(e) {
-      if (e.pointerId !== activeId) return;
-      if (finger) {
-        const dy = e.clientY - finger.y, dt = Math.max(1, e.timeStamp - finger.t);
-        opts.scroller.scrollTop -= dy;
-        finger.v = 0.7 * finger.v + 0.3 * (dy / dt);
-        finger.y = e.clientY; finger.t = e.timeStamp;
-        return;
-      }
-      e.preventDefault();
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of (evs.length ? evs : [e])) {
         const [x, y] = toLocal(ev);
@@ -196,26 +174,19 @@
         if (!cur) continue;
         const l = cur.p[cur.p.length - 1];
         if (Math.hypot(x - l[0], y - l[1]) < 0.6) continue;
-        cur.p.push([x, y, +pressureOf(ev).toFixed(3), Math.round(ev.timeStamp - t0)]);
+        const maxH = opts.maxH ? opts.maxH() : 1e9;
+        cur.p.push([x, Math.min(y, maxH - 2), +pressureOf(ev).toFixed(3), Math.round(ev.timeStamp - t0)]);
       }
       if (mode === 'lasso' && lassoEl) lassoEl.setAttribute('points', lasso.map(q => q.join(',')).join(' '));
       if (cur) {
         curPath.setAttribute('d', strokePath(cur));
         const maxY = cur.p[cur.p.length - 1][1];
-        if (maxY > block.h - 50) { block.h = Math.ceil(maxY + 160); setup(svg, block); }
+        const maxH = opts.maxH ? opts.maxH() : 1e9;
+        if (maxY > block.h - 50 && block.h < maxH) { block.h = Math.min(maxH, Math.ceil(maxY + 160)); setup(svg, block); }
       }
     }
 
-    function up(e) {
-      if (e.pointerId !== activeId) return;
-      activeId = null;
-      if (finger) {
-        const moved = Math.hypot(e.clientX - finger.x0, e.clientY - finger.y0);
-        if (moved < 8 && e.type === 'pointerup') opts.onTap && opts.onTap(e);
-        else if (Math.abs(finger.v) > 0.1) fling(opts.scroller, finger.v);
-        finger = null;
-        return;
-      }
+    function end() {
       if (mode === 'lasso') {
         if (lassoEl) lassoEl.remove();
         const sel = [];
@@ -226,24 +197,31 @@
           });
         }
         lasso = null; lassoEl = null;
+        mode = null;
         opts.onSelect && opts.onSelect(sel);
-      } else if (cur) {
+        return;
+      }
+      if (cur) {
         if (cur.p.length === 1) cur.p.push([cur.p[0][0] + 0.5, cur.p[0][1] + 0.5, cur.p[0][2], 1]);
         block.strokes.push(cur);
         curPath.setAttribute('d', strokePath(cur));
         cur = null; curPath = null;
+        mode = null;
         opts.onChange && opts.onChange();
       }
       mode = null;
     }
 
-    svg.addEventListener('pointerdown', down);
-    svg.addEventListener('pointermove', move);
-    svg.addEventListener('pointerup', up);
-    svg.addEventListener('pointercancel', up);
+    function cancel() {
+      if (curPath) curPath.remove();
+      if (lassoEl) lassoEl.remove();
+      cur = null; curPath = null; lasso = null; lassoEl = null; mode = null;
+      svg.parentElement && svg.parentElement.classList.toggle('empty', !block.strokes.length);
+    }
+
     svg.addEventListener('contextmenu', ev => ev.preventDefault());
-    return { begin };
+    return { start, move, end, cancel, svg, block };
   }
 
-  window.Ink = { render, attach, smooth, setup, boundsOf, tool, fling, W };
+  window.Ink = { render, session, smooth, setup, boundsOf, tool, fling, stopFling, W };
 })();
