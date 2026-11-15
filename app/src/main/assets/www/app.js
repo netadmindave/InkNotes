@@ -38,7 +38,7 @@
     lock: store.getPref('lock') === '1',
     mode: store.getPref('mode') || 'text',
     inkColor: store.getPref('inkColor') || '#1d3557',
-    inkSize: parseFloat(store.getPref('inkSize') || '4'),
+    inkSize: parseFloat(store.getPref('inkSize2') || '2.5'),
     lastNote: store.getPref('lastNote') || ''
   };
   let userDict = new Set();
@@ -678,7 +678,7 @@
     $$('#penbar .tool[data-tool]').forEach(t => t.onclick = () => { Ink.tool.kind = t.dataset.tool; syncTools(); });
     $$('#penbar .size').forEach(t => {
       t.classList.toggle('on', parseFloat(t.dataset.size) === prefs.inkSize);
-      t.onclick = () => { setPref('inkSize', parseFloat(t.dataset.size)); Ink.tool.size = prefs.inkSize; $$('#penbar .size').forEach(s => s.classList.toggle('on', s === t)); };
+      t.onclick = () => { setPref('inkSize2', parseFloat(t.dataset.size)); prefs.inkSize = parseFloat(t.dataset.size); Ink.tool.size = prefs.inkSize; $$('#penbar .size').forEach(s => s.classList.toggle('on', s === t)); };
     });
     syncTools();
   }
@@ -790,7 +790,20 @@
    */
   const touches = new Map();
   let g = null;                 // current gesture
-  let suppressClickUntil = 0;
+  // palm rejection: while the S Pen is down or hovering (and shortly after), touches are ignored
+  const ignored = new Set();
+  let penDown = false, lastPen = -1e9;
+  const PEN_GRACE = 700;        // ms after the pen leaves during which touches are still ignored
+  const PALM_SIZE = 34;         // contact wider/taller than this (CSS px) is a palm, not a fingertip
+  const isPalm = (e) => (e.width || 0) > PALM_SIZE || (e.height || 0) > PALM_SIZE;
+  function cancelTouchGesture() {
+    if (g && g.type === 'fdraw' && g.sess) { g.sess.cancel(); dropEmptyInk(g.sess); }
+    touches.forEach((_, id) => ignored.add(id));
+    touches.clear();
+    if (g && g.type !== 'draw') g = null;
+    Ink.stopFling();
+  }
+  let suppressClickUntil = 0, suppressTouchClickUntil = 0;
 
   const NATIVE = 'button, .actions, .modal, #report, label, select, input[type=checkbox], .rmpage, #addPage';
   const drawTarget = (t) => t.closest('.block.ink') || t.closest('.pad');
@@ -842,7 +855,25 @@
 
   function wireGestures() {
     const sc = $('#scroller');
+    // any pen activity (including hover) arms palm rejection
+    window.addEventListener('pointermove', (e) => { if (e.pointerType === 'pen') lastPen = performance.now(); }, true);
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'pen') { penDown = true; lastPen = performance.now(); cancelTouchGesture(); }
+    }, true);
+    const penUp = (e) => { if (e.pointerType === 'pen') { penDown = false; lastPen = performance.now(); } };
+    window.addEventListener('pointerup', penUp, true);
+    window.addEventListener('pointercancel', penUp, true);
+
     sc.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') {
+        const penNear = penDown || performance.now() - lastPen < PEN_GRACE;
+        if (penNear || isPalm(e) || ignored.has(e.pointerId)) {
+          ignored.add(e.pointerId);
+          suppressTouchClickUntil = Date.now() + 1500;
+          if (!e.target.closest(NATIVE)) e.preventDefault();
+          return;
+        }
+      }
       if (e.target.closest(NATIVE)) return;
       Ink.stopFling();
       const isPen = e.pointerType === 'pen' || (e.pointerType === 'mouse' && e.button === 0);
@@ -856,7 +887,7 @@
         return;
       }
       if (e.pointerType !== 'touch') return;
-      if (e.isPrimary) { touches.clear(); g = null; }        // first finger of a new gesture: forget stale state
+      if (e.isPrimary) { touches.clear(); ignored.clear(); if (g && g.type !== 'draw') g = null; }   // new gesture: forget stale state
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.size === 1) {
         const t = drawTarget(e.target);
@@ -876,6 +907,8 @@
     });
 
     window.addEventListener('pointermove', (e) => {
+      if (ignored.has(e.pointerId)) return;
+      if (e.pointerType === 'touch' && touches.has(e.pointerId) && (penDown || isPalm(e))) { cancelTouchGesture(); return; }
       if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!g) return;
       if (g.type === 'draw' && e.pointerId === g.id) { e.preventDefault(); g.sess.move(e); return; }
@@ -905,6 +938,7 @@
     }, { passive: false });
 
     const up = (e) => {
+      if (ignored.delete(e.pointerId)) { suppressTouchClickUntil = Date.now() + 400; return; }
       const wasTouch = touches.delete(e.pointerId);
       if (!g) return;
       if (g.type === 'pinch') { if (!touches.size) g = null; return; }
@@ -933,7 +967,8 @@
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
     document.addEventListener('click', (e) => {
-      if (Date.now() < suppressClickUntil && e.target.closest('#scroller')) { e.stopPropagation(); e.preventDefault(); }
+      const blocked = Date.now() < suppressClickUntil || (e.pointerType === 'touch' && Date.now() < suppressTouchClickUntil);
+      if (blocked && e.target.closest('#scroller, #toolbar, #penbar')) { e.stopPropagation(); e.preventDefault(); }
     }, true);
     // mouse / trackpad: ctrl+wheel zooms
     sc.addEventListener('wheel', (e) => {

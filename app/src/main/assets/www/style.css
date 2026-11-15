@@ -265,3 +265,5 @@ body.handmath .katex .frac-line { border-bottom-width: 1.5px !important; border-
   #toolbar .grow { display: none; }
 }
 #scroller, #scroller * { touch-action: none; }
+
+#penbar .size i { display: inline-block; border-radius: 50%; background: currentColor; vertical-align: middle; }

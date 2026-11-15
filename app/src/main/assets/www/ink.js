@@ -7,7 +7,7 @@
   const NS = 'http://www.w3.org/2000/svg';
   const W = 900; // logical width of every ink area
 
-  const tool = { kind: 'pen', color: '#1d3557', size: 4 };
+  const tool = { kind: 'pen', color: '#1d3557', size: 2.5 };
 
   function pathFromOutline(pts) {
     if (!pts.length) return '';
@@ -23,9 +23,10 @@
   function strokePath(st) {
     const hasPressure = st.p.some(q => q[2] !== 0.5);
     let o;
-    if (st.k === 'hl') o = { size: st.s * 4.5, thinning: 0, smoothing: 0.7, streamline: 0.6, simulatePressure: false };
-    else if (st.k === 'pc') o = { size: st.s * 1.4, thinning: 0.35, smoothing: 0.5, streamline: 0.4, simulatePressure: !hasPressure };
-    else o = { size: st.s * 2.2, thinning: 0.6, smoothing: 0.6, streamline: 0.45, simulatePressure: !hasPressure,
+    // st.s ≈ line width at medium pressure (perfect-freehand's size is a radius scale)
+    if (st.k === 'hl') o = { size: st.s * 3.2, thinning: 0, smoothing: 0.7, streamline: 0.6, simulatePressure: false };
+    else if (st.k === 'pc') o = { size: st.s * 0.75, thinning: 0.3, smoothing: 0.5, streamline: 0.4, simulatePressure: !hasPressure };
+    else o = { size: st.s * 1.0, thinning: 0.5, smoothing: 0.6, streamline: 0.45, simulatePressure: !hasPressure,
       start: { taper: hasPressure ? 0 : 6, cap: true }, end: { taper: hasPressure ? 0 : 10, cap: true } };
     o.last = true;
     return pathFromOutline(PF.getStroke(st.p.map(q => [q[0], q[1], q[2]]), o));

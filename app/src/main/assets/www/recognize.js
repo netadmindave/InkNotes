@@ -166,8 +166,8 @@
       if (!rest.includes(bar)) continue;
       const B = bbox(bar);
       const inSpan = (o) => o !== bar && bbox(o).cx > B.x0 - 0.1 * H && bbox(o).cx < B.x1 + 0.1 * H;
-      const num = rest.filter(o => inSpan(o) && bbox(o).cy < B.cy && B.cy - bbox(o).y1 < 1.6 * H);
-      const den = rest.filter(o => inSpan(o) && bbox(o).cy > B.cy && bbox(o).y0 - B.cy < 1.6 * H);
+      const num = rest.filter(o => inSpan(o) && bbox(o).cy < B.cy && B.cy - bbox(o).y1 < 2.4 * H);
+      const den = rest.filter(o => inSpan(o) && bbox(o).cy > B.cy && bbox(o).y0 - B.cy < 2.4 * H);
       if (!num.length || !den.length) continue;
       // a bar that is about as wide as its neighbours and level with them is a minus sign, not a fraction
       const all = num.concat(den, [bar]);
@@ -233,8 +233,16 @@
       if (OK1.test(t)) { pick = t; break; }
     }
     if (!pick) pick = (cands && cands[0] && cands[0].t) ? cands[0].t.trim().slice(0, 1) : '?';
-    if (tall && /^(S|s|f|J|l|\||\(|\)|1|5|ʃ|int)$/.test(pick) && b.w < 0.75 * b.h) pick = pick === '(' || pick === ')' ? pick : 'int';
-    else if (tall && /^(E|Z|e|ε|sum)$/.test(pick)) pick = 'sum';
+    return refine(pick, sym, H);
+  }
+
+  /** Geometry-based corrections to a recognised character. */
+  function refine(pick, sym, H) {
+    const b = sym.b;
+    if (pick === '_' || pick === '~' && sym.strokes.length === 1 && isFlat(b, H)) pick = '-';
+    // a very tall, narrow S / f / ∫ is an integral sign (J, l, 1 stay letters/digits)
+    if (b.h > 1.7 * H && /^(S|s|f|ʃ|int)$/.test(pick) && b.w < 0.7 * b.h) pick = 'int';
+    else if (b.h > 1.7 * H && /^(E|Σ|sum)$/.test(pick)) pick = 'sum';
     // case from size: small capitals of look-alike letters are lowercase
     if (/^[CKOPSUVWXZ]$/.test(pick) && b.h < 0.72 * H) pick = pick.toLowerCase();
     return pick;
@@ -267,18 +275,20 @@
 
   function joinTokens(parts) {
     let s = '';
+    let prev = '';
     for (const p of parts) {
       if (!p) continue;
-      const needSpace = s && (/[A-Za-z]$/.test(s) && /^[A-Za-z]/.test(p) && (p.length > 1 || /[A-Za-z]{2,}$/.test(s.split(/[^A-Za-z]/).pop() || '')))
+      const needSpace = s && /[_^]/.test(prev) && /^[A-Za-z0-9(]/.test(p) || s && (/[A-Za-z]$/.test(s) && /^[A-Za-z]/.test(p) && (p.length > 1 || /[A-Za-z]{2,}$/.test(s.split(/[^A-Za-z]/).pop() || '')))
         || (s && OPS.has(p)) || (s && /^(xx|int|sum|oo|pi|sqrt)/.test(p)) || /(xx|int|sum|oo|pi|\)|-|\+|=)$/.test(s) && /^[A-Za-z0-9(]/.test(p);
       s += (needSpace ? ' ' : '') + p;
+      prev = p;
     }
     return s.replace(/\s+/g, ' ').trim();
   }
 
   /** nodes: sorted left→right, with .ch for symbols. */
   let rowH = 24;
-  function emitRow(nodes) {
+  function emitRow(nodes, flat) {
     if (!nodes || !nodes.length) return '';
     const plain = nodes.filter(n => n.kind === 'sym' && !isOp(n) && !BIGOPS.has(n.ch) && !isDot(n.b, 999));
     const refH = plain.length >= 3 ? median(plain.map(n => n.b.h)) : Math.max(rowH, median(plain.map(n => n.b.h)) || 0);
@@ -310,11 +320,17 @@
         continue;
       }
       // superscript / subscript relative to the previous base symbol
-      if (base && !isOp(n) && n.kind === 'sym') {
-        const B = base.b.h > 0.4 * refH ? base.b : { cy: refCy, h: refH, y0: refCy - refH / 2, y1: refCy + refH / 2 };
-        const small = n.b.h < 0.85 * Math.max(B.h, refH * 0.8);
-        const isSup = small && n.b.cy < B.cy - 0.32 * B.h && n.b.y1 < B.cy + 0.1 * B.h;
-        const isSub = small && n.b.cy > B.cy + 0.32 * B.h && n.b.y0 > B.cy - 0.1 * B.h;
+      if (base && !flat && !isOp(n) && n.kind === 'sym') {
+        let B = base.b.h > 0.4 * refH ? base.b : { cy: refCy, h: refH, y0: refCy - refH / 2, y1: refCy + refH / 2 };
+        // letters with descenders: compare against the body of the letter, not its tail
+        if (base.kind === 'sym' && /^[gjpqy]$/.test(base.ch || '')) {
+          const h = B.h * 0.62;
+          B = { y0: B.y0, y1: B.y0 + h, h, cy: B.y0 + h / 2 };
+        }
+        const notBig = n.b.h < 1.3 * Math.max(B.h, refH * 0.8);
+        // raised: sits above the middle of the base; lowered: starts below the middle of the base
+        const isSup = notBig && n.b.cy < B.cy - 0.3 * B.h && n.b.y1 < B.cy + 0.15 * B.h;
+        const isSub = notBig && n.b.cy > B.cy + 0.3 * B.h && n.b.y0 > B.cy - 0.12 * B.h;
         if (isSup || isSub) {
           const grp = [n];
           let j = i + 1;
@@ -324,7 +340,7 @@
             if (!same || m.b.x0 > grp[grp.length - 1].b.x1 + 0.9 * refH) break;
             grp.push(m); j++;
           }
-          const inner = emitRow(grp);
+          const inner = emitRow(grp, isSub);   // subscripts stay one level (n_{p0}); superscripts may nest (e^{-x^2})
           out[out.length - 1] = out[out.length - 1] + (isSup ? '^' : '_') + (inner.length === 1 ? inner : '(' + inner + ')');
           i = j;
           continue;
@@ -347,12 +363,50 @@
     return acc;
   }
 
+  function rowsOf(nodes, acc) {
+    acc.push(nodes.filter(n => n.kind === 'sym'));
+    for (const n of nodes) {
+      if (n.kind === 'frac') { rowsOf(n.num, acc); rowsOf(n.den, acc); }
+      else if (n.kind === 'sqrt') rowsOf(n.body, acc);
+    }
+    return acc;
+  }
+  const charsOf = (t) => Array.from((t || '').replace(/\s+/g, ''));
+  const norm = (c) => MAP[c] || c;
+
   async function recognizeMath(strokes) {
     const H = charHeight(strokes);
     const tree = structure(strokes, H);
-    const syms = collectSyms(tree, []);
-    const cands = await recognizeGroups(syms.map(s => s.strokes));
-    syms.forEach((s, k) => { s.ch = chooseSymbol(cands[k], s, H); });
+    // 1) read each row as a whole — the recognizer is far better with context than with lone symbols —
+    //    then map its characters onto the symbols found by the layout analysis (left to right).
+    const rows = rowsOf(tree, []).filter(r => r.length);
+    const rowCands = await recognizeGroups(rows.map(r => r.flatMap(n => n.strokes)));
+    const leftovers = [];
+    rows.forEach((r, k) => {
+      const cands = (rowCands[k] || []).map(c => c.t || '');
+      for (const t of cands) {
+        const ch = charsOf(t);
+        if (ch.length === r.length) { r.forEach((n, i) => { n.ch = refine(norm(ch[i]), n, H); }); return; }
+      }
+      // tiny marks (dots, primes) are often dropped by the recognizer: try matching without them
+      const solid = r.filter(n => !isDot(n.b, H));
+      if (solid.length < r.length) {
+        for (const t of cands) {
+          const ch = charsOf(t);
+          if (ch.length === solid.length) {
+            solid.forEach((n, i) => { n.ch = refine(norm(ch[i]), n, H); });
+            leftovers.push(...r.filter(n => isDot(n.b, H)));
+            return;
+          }
+        }
+      }
+      leftovers.push(...r);
+    });
+    // 2) anything that couldn't be matched is recognised symbol by symbol
+    if (leftovers.length) {
+      const cands = await recognizeGroups(leftovers.map(s => s.strokes));
+      leftovers.forEach((s, k) => { s.ch = chooseSymbol(cands[k], s, H); });
+    }
     const fixRows = (nodes) => { fixDigitsContext(nodes); nodes.forEach(n => { if (n.num) { fixRows(n.num); fixRows(n.den); } if (n.body) fixRows(n.body); }); };
     fixRows(tree);
     rowH = H;
