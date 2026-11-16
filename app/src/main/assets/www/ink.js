@@ -7,7 +7,7 @@
   const NS = 'http://www.w3.org/2000/svg';
   const W = 900; // logical width of every ink area
 
-  const tool = { kind: 'pen', color: '#1d3557', size: 2.5, dash: '', shapes: true };
+  const tool = { kind: 'pen', color: '#1d3557', size: 2.5, dash: '', shapes: true, eraserSize: 14, eraserMode: 'area' };
 
   function pathFromOutline(pts) {
     if (!pts.length) return '';
@@ -89,14 +89,6 @@
       const p = pathEl(st);
       if (sel.has(i)) p.setAttribute('class', 'sel');
       svg.appendChild(p);
-    }
-    if (sel.size) {
-      const b = boundsOf(block.strokes.filter((_, i) => sel.has(i)));
-      const r = document.createElementNS(NS, 'rect');
-      r.setAttribute('x', b.x0 - 8); r.setAttribute('y', b.y0 - 8);
-      r.setAttribute('width', b.x1 - b.x0 + 16); r.setAttribute('height', b.y1 - b.y0 + 16);
-      r.setAttribute('class', 'selbox'); r.setAttribute('rx', 6);
-      svg.appendChild(r);
     }
     svg.parentElement && svg.parentElement.classList.toggle('empty', !(block.strokes || []).length);
   }
@@ -300,6 +292,77 @@
     return null;
   }
 
+  /* -------- eraser: removes only what is under it (or whole strokes in 'stroke' mode) -------- */
+  const bbCache = new WeakMap();
+  function sbox(st) {
+    let b = bbCache.get(st);
+    if (!b) {
+      b = [1e9, 1e9, -1e9, -1e9];
+      for (const q of st.p) { if (q[0] < b[0]) b[0] = q[0]; if (q[1] < b[1]) b[1] = q[1]; if (q[0] > b[2]) b[2] = q[0]; if (q[1] > b[3]) b[3] = q[1]; }
+      bbCache.set(st, b);
+    }
+    return b;
+  }
+  function densePts(P, step) {
+    const out = [P[0]];
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1], b = P[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const n = Math.floor(d / step);
+      for (let k = 1; k <= n; k++) {
+        const t = k / (n + 1);
+        out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + ((b[2] || a[2]) - a[2]) * t, a[3] || 0]);
+      }
+      out.push(b);
+    }
+    return out;
+  }
+  /** Erase a disc of radius r at (x,y). Returns the new stroke list, or null if nothing changed. */
+  function eraseDisc(strokes, x, y, r, mode) {
+    let changed = false;
+    const out = [];
+    for (const st of strokes) {
+      const rr = r + widthOf(st) / 2;
+      const b = sbox(st);
+      if (x < b[0] - rr || x > b[2] + rr || y < b[1] - rr || y > b[3] + rr) { out.push(st); continue; }
+      if (mode === 'stroke') {
+        if (densePts(st.p, Math.max(1, rr / 2)).some(q => Math.hypot(q[0] - x, q[1] - y) < rr)) { changed = true; continue; }
+        out.push(st); continue;
+      }
+      const P = densePts(st.p, Math.max(0.8, rr / 3));
+      const pieces = [];
+      let run = [], hit = false;
+      for (const q of P) {
+        if (Math.hypot(q[0] - x, q[1] - y) < rr) { hit = true; if (run.length) { pieces.push(run); run = []; } }
+        else run.push(q);
+      }
+      if (run.length) pieces.push(run);
+      if (!hit) { out.push(st); continue; }
+      // a closed outline cut once is still one piece: join the tail onto the head
+      if (st.g === 2 && pieces.length >= 2 && Math.hypot(P[0][0] - P[P.length - 1][0], P[0][1] - P[P.length - 1][1]) < 4 &&
+          pieces[0][0] === P[0] && pieces[pieces.length - 1][pieces[pieces.length - 1].length - 1] === P[P.length - 1]) {
+        pieces[0] = pieces.pop().concat(pieces[0]);
+      }
+      changed = true;
+      for (const pc of pieces) {
+        if (pc.length < 2) continue;
+        const ns = Object.assign({}, st, { p: pc.map(q => [+q[0].toFixed(1), +q[1].toFixed(1), +(q[2] || 0.5).toFixed(3), q[3] || 0]) });
+        if (st.g === 2) ns.g = 1;
+        out.push(ns);
+      }
+    }
+    return changed ? out : null;
+  }
+  /** Erase along the path from (x0,y0) to (x1,y1) so fast moves don't skip. */
+  function eraseAlong(holder, x0, y0, x1, y1, r, mode) {
+    const d = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(d / Math.max(2, r / 2)));
+    let changed = false;
+    for (let k = 1; k <= n; k++) {
+      const res = eraseDisc(holder.strokes, x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, r, mode);
+      if (res) { holder.strokes = res; changed = true; }
+    }
+    return changed;
+  }
+
   /* -------- momentum scrolling (used by the app's gesture handler) -------- */
   let flingRaf = 0;
   function fling(scroller, vx, vy) {
@@ -347,12 +410,14 @@
     };
     const pressureOf = (e) => (e.pointerType === 'pen' ? Math.max(0.05, e.pressure || 0.5) : 0.5);
 
+    let lastErase = null;
     function eraseAt(x, y) {
-      const r = 12;
-      const before = block.strokes.length;
-      block.strokes = block.strokes.filter(st => !st.p.some(q => Math.hypot(q[0] - x, q[1] - y) < r + st.s));
-      if (block.strokes.length !== before) { render(svg, block); opts.onChange && opts.onChange(); }
+      const p0 = lastErase || [x, y];
+      lastErase = [x, y];
+      if (eraseAlong(block, p0[0], p0[1], x, y, tool.eraserSize, tool.eraserMode)) { scheduleRender(); erased = true; }
     }
+    let erased = false, rq = 0;
+    function scheduleRender() { if (rq) return; rq = requestAnimationFrame(() => { rq = 0; render(svg, block); }); }
 
     function start(e) {
       const A = window.Android;
@@ -361,6 +426,7 @@
       mode = sideButton || tool.kind === 'eraser' ? 'erase' : tool.kind === 'lasso' ? 'lasso' : 'draw';
       const [x, y] = toLocal(e);
       t0 = e.timeStamp;
+      lastErase = null; erased = false;
       if (mode === 'erase') { eraseAt(x, y); return; }
       if (mode === 'lasso') {
         lasso = [[x, y]];
@@ -411,6 +477,11 @@
     }
 
     function end() {
+      if (mode === 'erase') {
+        mode = null; lastErase = null;
+        if (erased) { erased = false; opts.onChange && opts.onChange(); }
+        return;
+      }
       if (mode === 'lasso') {
         if (lassoEl) lassoEl.remove();
         const sel = [];
@@ -420,9 +491,10 @@
             if (inside >= 0.6 * st.p.length) sel.push(i);
           });
         }
+        const poly = lasso;
         lasso = null; lassoEl = null;
         mode = null;
-        opts.onSelect && opts.onSelect(sel);
+        opts.onSelect && opts.onSelect(sel, poly || []);
         return;
       }
       clearTimeout(holdTimer);
@@ -441,11 +513,12 @@
     }
 
     /** Erase under a screen point (used for the S Pen side button, handled natively). Returns true if something went. */
-    function eraseClient(cx, cy) {
+    function eraseClient(cx, cy, first) {
       const [x, y] = toLocal({ clientX: cx, clientY: cy });
-      const before = block.strokes.length;
-      block.strokes = block.strokes.filter(st => !st.p.some(q => Math.hypot(q[0] - x, q[1] - y) < 12 + st.s));
-      if (block.strokes.length !== before) { render(svg, block); return true; }
+      if (first) lastErase = null;
+      const p0 = lastErase || [x, y];
+      lastErase = [x, y];
+      if (eraseAlong(block, p0[0], p0[1], x, y, tool.eraserSize, tool.eraserMode)) { scheduleRender(); return true; }
       return false;
     }
 
@@ -458,8 +531,8 @@
     }
 
     svg.addEventListener('contextmenu', ev => ev.preventDefault());
-    return { start, move, end, cancel, eraseClient, svg, block };
+    return { start, move, end, cancel, eraseClient, svg, block, get active() { return !!mode; } };
   }
 
-  window.Ink = { render, session, smooth, setup, boundsOf, tool, fling, stopFling, snapShape, W };
+  window.Ink = { render, session, smooth, setup, boundsOf, tool, fling, stopFling, snapShape, eraseDisc, pointInPoly, W };
 })();
