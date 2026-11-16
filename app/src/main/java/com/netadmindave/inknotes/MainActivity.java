@@ -63,13 +63,9 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
 
     // ---- S Pen state + palm rejection ----
-    // Touch streams that begin while the pen is near the screen are kept away from the page;
-    // if the pen then touches down inside such a stream, its pointer is forwarded on its own.
+    // The page asks penNear() and ignores finger/palm touches while the pen is close.
     private volatile boolean penHover = false, penTouch = false, penButton = false;
     private volatile long penSeenAt = 0;
-    private boolean filtering = false, inSynth = false;
-    private int synthPenId = -1;
-    private long synthDownTime = 0;
     private static final long PEN_GRACE_MS = 1200;
 
     private static boolean isPen(int toolType) {
@@ -95,78 +91,17 @@ public class MainActivity extends Activity {
         return false;   // the WebView still gets hover events
     }
 
+    /** Track the S Pen; never consume events, so pen positions always take the WebView's normal path. */
     private boolean onTouch(MotionEvent ev) {
-        if (inSynth) return false;
         int act = ev.getActionMasked();
-        int penIdx = -1;
-        for (int i = 0; i < ev.getPointerCount(); i++) if (isPen(ev.getToolType(i))) { penIdx = i; notePen(ev, i); }
-        if (penIdx >= 0) {
-            boolean penLifting = (act == MotionEvent.ACTION_UP || act == MotionEvent.ACTION_CANCEL)
-                    || (act == MotionEvent.ACTION_POINTER_UP && ev.getActionIndex() == penIdx);
-            penTouch = !penLifting;
+        for (int i = 0; i < ev.getPointerCount(); i++) {
+            if (!isPen(ev.getToolType(i))) continue;
+            notePen(ev, i);
+            boolean lifting = act == MotionEvent.ACTION_UP || act == MotionEvent.ACTION_CANCEL
+                    || (act == MotionEvent.ACTION_POINTER_UP && ev.getActionIndex() == i);
+            penTouch = !lifting;
         }
-        if (act == MotionEvent.ACTION_DOWN) {
-            filtering = !isPen(ev.getToolType(0)) && penNearNow();
-            synthPenId = -1;
-        }
-        if (!filtering) return false;
-        // inside a palm stream: forward only the pen pointer, as a single-pointer stream
-        switch (act) {
-            case MotionEvent.ACTION_POINTER_DOWN:
-                if (penIdx >= 0 && ev.getActionIndex() == penIdx && synthPenId < 0) {
-                    synthPenId = ev.getPointerId(penIdx);
-                    synthDownTime = ev.getEventTime();
-                    forward(ev, penIdx, MotionEvent.ACTION_DOWN);
-                }
-                break;
-            case MotionEvent.ACTION_MOVE:
-                if (synthPenId >= 0) { int i = ev.findPointerIndex(synthPenId); if (i >= 0) forward(ev, i, MotionEvent.ACTION_MOVE); }
-                break;
-            case MotionEvent.ACTION_POINTER_UP:
-                if (synthPenId >= 0 && ev.getPointerId(ev.getActionIndex()) == synthPenId) {
-                    forward(ev, ev.getActionIndex(), MotionEvent.ACTION_UP);
-                    synthPenId = -1;
-                }
-                break;
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_CANCEL:
-                if (synthPenId >= 0) {
-                    int i = ev.findPointerIndex(synthPenId);
-                    if (i >= 0) forward(ev, i, act == MotionEvent.ACTION_UP ? MotionEvent.ACTION_UP : MotionEvent.ACTION_CANCEL);
-                    synthPenId = -1;
-                }
-                filtering = false;
-                break;
-            default:
-                break;
-        }
-        return true;
-    }
-
-    /** Re-dispatch one pointer of ev (with its history) as a single-pointer event. */
-    private void forward(MotionEvent ev, int idx, int action) {
-        MotionEvent.PointerProperties[] pp = { new MotionEvent.PointerProperties() };
-        ev.getPointerProperties(idx, pp[0]);
-        pp[0].id = 0;
-        MotionEvent.PointerCoords[] pc = { new MotionEvent.PointerCoords() };
-        int hs = action == MotionEvent.ACTION_MOVE ? ev.getHistorySize() : 0;
-        long t0;
-        if (hs > 0) { ev.getHistoricalPointerCoords(idx, 0, pc[0]); t0 = ev.getHistoricalEventTime(0); }
-        else { ev.getPointerCoords(idx, pc[0]); t0 = ev.getEventTime(); }
-        MotionEvent m = MotionEvent.obtain(synthDownTime, t0, action, 1, pp, pc, ev.getMetaState(), ev.getButtonState(),
-                ev.getXPrecision(), ev.getYPrecision(), ev.getDeviceId(), ev.getEdgeFlags(), ev.getSource(), ev.getFlags());
-        for (int h = 1; h < hs; h++) {
-            MotionEvent.PointerCoords[] c = { new MotionEvent.PointerCoords() };
-            ev.getHistoricalPointerCoords(idx, h, c[0]);
-            m.addBatch(ev.getHistoricalEventTime(h), c, ev.getMetaState());
-        }
-        if (hs > 0) {
-            MotionEvent.PointerCoords[] c = { new MotionEvent.PointerCoords() };
-            ev.getPointerCoords(idx, c[0]);
-            m.addBatch(ev.getEventTime(), c, ev.getMetaState());
-        }
-        inSynth = true;
-        try { web.dispatchTouchEvent(m); } finally { inSynth = false; m.recycle(); }
+        return false;
     }
 
     // ---- handwriting recognition (Google ML Kit Digital Ink, on-device) ----
