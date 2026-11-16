@@ -9,6 +9,7 @@
 <style id="pageStyle"></style>
 </head>
 <body>
+<div id="eraserDot" hidden></div>
 <div id="app">
   <aside id="sidebar">
     <div class="side-head">
@@ -51,6 +52,12 @@
       <button data-tool="hl" class="tool" title="Highlighter">🖍<span class="lbl"> Highlight</span></button>
       <button data-tool="eraser" class="tool" title="Eraser (or hold the S Pen button)">⌫<span class="lbl"> Eraser</span></button>
       <button data-tool="lasso" class="tool" title="Lasso select">◌<span class="lbl"> Lasso</span></button>
+      <span class="sep"></span>
+      <button data-dash="" class="tool dash on" title="Solid line">━</button>
+      <button data-dash="dash" class="tool dash" title="Dashed line">╍</button>
+      <button data-dash="dot" class="tool dash" title="Dotted line">┈</button>
+      <button id="btnShapes" class="tool toggle" title="Straighten lines and shapes automatically (or hold the pen still at the end of a stroke)">📐<span class="lbl"> Shapes</span></button>
+      <span class="sep"></span>
       <span class="swatches"></span>
       <span class="sizes">
         <button data-size="1.5" class="size" title="Fine"><i style="width:2px;height:2px"></i></button>
@@ -77,6 +84,8 @@
   <div id="menu" class="popover" hidden>
     <div class="mh">Handwriting</div>
     <div class="row" id="fontRow"></div>
+    <div class="mh">Text size</div>
+    <div class="row" id="tsizeRow"><button data-t="s">Small</button><button data-t="m">Medium</button><button data-t="l">Large</button></div>
     <div class="mh">Page</div>
     <div class="row" id="sizeRow"></div>
     <div class="row" id="paperRow"></div>

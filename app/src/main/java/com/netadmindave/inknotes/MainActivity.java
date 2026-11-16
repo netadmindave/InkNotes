@@ -91,17 +91,63 @@ public class MainActivity extends Activity {
         return false;   // the WebView still gets hover events
     }
 
-    /** Track the S Pen; never consume events, so pen positions always take the WebView's normal path. */
+    private boolean nativeErase = false, inSynth = false;
+
+    /**
+     * Track the S Pen. Normal pen events go to the WebView untouched (accurate positions).
+     * With the side button held (or the eraser end), Chrome would start a text selection instead,
+     * so those strokes are kept here and sent to the page as eraser points.
+     */
     private boolean onTouch(MotionEvent ev) {
+        if (inSynth) return false;
         int act = ev.getActionMasked();
+        int pen = -1;
         for (int i = 0; i < ev.getPointerCount(); i++) {
             if (!isPen(ev.getToolType(i))) continue;
+            pen = i;
             notePen(ev, i);
             boolean lifting = act == MotionEvent.ACTION_UP || act == MotionEvent.ACTION_CANCEL
                     || (act == MotionEvent.ACTION_POINTER_UP && ev.getActionIndex() == i);
             penTouch = !lifting;
         }
+        if (!nativeErase && pen >= 0 && penButton
+                && (act == MotionEvent.ACTION_DOWN || act == MotionEvent.ACTION_POINTER_DOWN || act == MotionEvent.ACTION_MOVE)) {
+            if (act != MotionEvent.ACTION_DOWN) {
+                // the WebView already saw this stream begin: cancel it there (drops a half-drawn stroke)
+                MotionEvent c = MotionEvent.obtain(ev);
+                c.setAction(MotionEvent.ACTION_CANCEL);
+                inSynth = true;
+                try { web.dispatchTouchEvent(c); } finally { inSynth = false; c.recycle(); }
+            }
+            nativeErase = true;
+            sendErase(ev, pen, "start");
+            return true;
+        }
+        if (nativeErase) {
+            boolean streamEnd = act == MotionEvent.ACTION_UP || act == MotionEvent.ACTION_CANCEL;
+            boolean penUp = pen >= 0 && act == MotionEvent.ACTION_POINTER_UP && ev.getActionIndex() == pen;
+            if (pen >= 0) sendErase(ev, pen, streamEnd || penUp ? "end" : "move");
+            else if (streamEnd) jsEval("window.InkNotes && InkNotes.penErase([], 'end')");
+            if (streamEnd) nativeErase = false;
+            return true;
+        }
         return false;
+    }
+
+    private void sendErase(MotionEvent ev, int i, String phase) {
+        float d = getResources().getDisplayMetrics().density;
+        StringBuilder sb = new StringBuilder("[");
+        int hs = ev.getHistorySize();
+        for (int h = 0; h < hs; h++) {
+            sb.append('[').append(Math.round(ev.getHistoricalX(i, h) / d)).append(',')
+              .append(Math.round(ev.getHistoricalY(i, h) / d)).append("],");
+        }
+        sb.append('[').append(Math.round(ev.getX(i) / d)).append(',').append(Math.round(ev.getY(i) / d)).append("]]");
+        jsEval("window.InkNotes && InkNotes.penErase(" + sb + ",'" + phase + "')");
+    }
+
+    private void jsEval(String js) {
+        if (web != null) web.evaluateJavascript(js, null);
     }
 
     // ---- handwriting recognition (Google ML Kit Digital Ink, on-device) ----

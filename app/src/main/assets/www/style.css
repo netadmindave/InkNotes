@@ -15,12 +15,17 @@
   --accent: #1f3a5f;
   --line: 40px;            /* ruled line spacing */
   --hand: "Caveat";
-  --hand-size: 31px;
+  --hand-base: 31px;
   --hand-shift: 0px;       /* nudges baseline onto the rule */
 }
-body.font-kalam   { --hand: "Kalam";  --hand-size: 23px; --hand-shift: 2px; }
-body.font-patrick { --hand: "Patrick Hand"; --hand-size: 26px; --hand-shift: 1px; }
-body.font-shadows { --hand: "Shadows Into Light"; --hand-size: 26px; --hand-shift: 2px; }
+body.font-kalam   { --hand: "Kalam";  --hand-base: 23px; --hand-shift: 2px; }
+body.font-patrick { --hand: "Patrick Hand"; --hand-base: 26px; --hand-shift: 1px; }
+body.font-shadows { --hand: "Shadows Into Light"; --hand-base: 26px; --hand-shift: 2px; }
+/* text size: ruled-line spacing and handwriting size scale together */
+body { --ts: 0.8; --line: 32px; --hand-size: calc(var(--hand-base) * var(--ts)); }
+body.ts-s { --ts: 0.68; --line: 28px; }
+body.ts-m { --ts: 0.8; --line: 32px; }
+body.ts-l { --ts: 1; --line: 40px; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; background: var(--chrome); color: var(--ui);
@@ -88,7 +93,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #pages { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 18px 0 40vh; min-width: min-content; }
 .sheet { position: relative; flex: none; background-color: var(--paper); border-radius: 3px;
   box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 6px 22px rgba(0,0,0,.08); overflow: visible; }
-.sheet .content { position: relative; margin: 80px 56px 56px 96px; display: flex; flex-direction: column; }
+.sheet .content { position: relative; margin: calc(var(--line) * 2) 56px 56px 96px; display: flex; flex-direction: column; }
 .sheet .pad { flex: 1 1 auto; min-height: 24px; position: relative; cursor: crosshair; }
 .sheet .pnum { position: absolute; bottom: 18px; right: 56px; font-size: 12px; color: #b8b1a0; }
 .sheet.paper-lined {
@@ -136,7 +141,7 @@ textarea { display: block; width: 100%; resize: none; border: 0; outline: none; 
 /* math blocks */
 .block.math .disp { text-align: center; padding: 10px 0; min-height: calc(var(--line) * 2); display: flex; align-items: center; justify-content: center; color: var(--ink); overflow-x: auto; }
 .block.math .disp .katex-display { margin: 0; }
-.block.math .disp .katex { font-size: 1.45em; }
+.block.math .disp .katex { font-size: calc(1.45em * var(--ts)); }
 .block.math .disp.empty::before { content: "formula"; color: #c4bba6; font-family: var(--hand); font-size: var(--hand-size); }
 .block.math textarea { font-family: ui-monospace, "Roboto Mono", Menlo, monospace; font-size: 19px; line-height: 1.5;
   padding: 8px 10px; background: #fffdf8; border-radius: 6px; border: 1px dashed #d6c79a; color: #333; }
@@ -284,3 +289,8 @@ body.handmath .katex .frac-line { border-bottom-width: 1.5px !important; border-
 #trChips button.done { background: #e7f3e8; border-color: #9ccc9f; }
 #trChips button.on { box-shadow: 0 0 0 2px var(--accent); }
 #trChips button sup { font-size: 10px; color: #6b8f6e; margin-left: 2px; }
+
+#penbar .dash { width: 40px; padding: 0; font-size: 18px; justify-content: center; }
+#eraserDot { position: fixed; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
+  border: 2px solid #c2410c; background: rgba(194,65,12,.08); pointer-events: none; z-index: 60; }
+#eraserDot[hidden] { display: none; }

@@ -36,6 +36,9 @@
     // no S Pen (e.g. Pixel) → one finger writes; with a pen, fingers scroll by default
     fingerDraws: (() => { const v = store.getPref('fingerDraws'); if (v) return v === '1'; try { return !(A && A.hasStylus && A.hasStylus()); } catch (e) { return true; } })(),
     lock: store.getPref('lock') === '1',
+    textSize: store.getPref('textSize') || 'm',
+    dash: store.getPref('dash') || '',
+    shapes: store.getPref('shapes') !== '0',
     mode: store.getPref('mode') || 'text',
     inkColor: store.getPref('inkColor') || '#1d3557',
     inkSize: parseFloat(store.getPref('inkSize2') || '2.5'),
@@ -49,7 +52,9 @@
   const PAPERS = [['lined', 'Lined'], ['grid', 'Grid'], ['dot', 'Dots'], ['plain', 'Plain']];
   const INK_COLORS = ['#1d3557', '#111111', '#c2410c', '#2f7d32', '#7b2cbf', '#f5c518'];
   const SIZES = { letter: { w: 816, h: 1056, label: 'Letter 8.5×11', css: '8.5in 11in' }, a4: { w: 794, h: 1123, label: 'A4', css: '210mm 297mm' } };
-  const MARGIN = { t: 80, b: 56, l: 96, r: 56 };
+  const LINE = { s: 28, m: 32, l: 40 };
+  const lineH = () => LINE[prefs.textSize] || 32;
+  const MARGIN = { get t() { return 2 * lineH(); }, b: 56, l: 96, r: 56 };
   const pageDim = () => SIZES[(note && note.size) || prefs.size] || SIZES.letter;
   const contentW = () => pageDim().w - MARGIN.l - MARGIN.r;
   const contentH = () => pageDim().h - MARGIN.t - MARGIN.b;
@@ -58,6 +63,8 @@
     document.body.classList.remove(...FONTS.map(f => 'font-' + f[0]));
     document.body.classList.add('font-' + prefs.font);
     document.body.classList.toggle('handmath', prefs.handMath);
+    document.body.classList.remove('ts-s', 'ts-m', 'ts-l');
+    document.body.classList.add('ts-' + prefs.textSize);
   }
 
   /* ---------------- notes ---------------- */
@@ -504,7 +511,7 @@
       x.addEventListener('click', e => { e.stopPropagation(); fn(); });
       a.appendChild(x);
     };
-    btn('⇄ Convert', () => convertInk(b.id, idx));
+    if (idx) btn('⇄ Convert', () => convertInk(b.id, idx));
     btn('Smooth', () => { Ink.smooth(b, idx); rerenderBlock(b.id); commit(); });
     if (idx) {
       btn('Delete', () => { b.strokes = b.strokes.filter((_, i) => !idx.has(i)); inkSel = null; if (!b.strokes.length) deleteBlock(b.id); else { rerenderBlock(b.id); commit(); } }, 'danger');
@@ -675,6 +682,10 @@
       };
       sw.appendChild(x);
     }
+    Ink.tool.dash = prefs.dash; Ink.tool.shapes = prefs.shapes;
+    $$('#penbar .dash').forEach(b => b.onclick = () => { setPref('dash', b.dataset.dash); Ink.tool.dash = prefs.dash; syncTools(); });
+    $('#btnShapes').onclick = () => { setPref('shapes', !prefs.shapes); Ink.tool.shapes = prefs.shapes; syncTools();
+      toast(prefs.shapes ? 'Shapes on: big lines and shapes straighten. Or hold the pen still at the end of any stroke.' : 'Shapes off — hold the pen still at the end of a stroke to straighten it'); };
     $$('#penbar .tool[data-tool]').forEach(t => t.onclick = () => { Ink.tool.kind = t.dataset.tool; syncTools(); });
     $$('#penbar .size').forEach(t => {
       t.classList.toggle('on', parseFloat(t.dataset.size) === prefs.inkSize);
@@ -686,6 +697,8 @@
     eraser: 'Erase whole strokes (or hold the S Pen button any time)', lasso: 'Circle strokes to select, then Convert' };
   function syncTools() {
     $$('#penbar .tool[data-tool]').forEach(t => t.classList.toggle('on', t.dataset.tool === Ink.tool.kind));
+    $$('#penbar .dash').forEach(b => b.classList.toggle('on', b.dataset.dash === prefs.dash));
+    $('#btnShapes').classList.toggle('on', prefs.shapes);
     $('#btnFinger').classList.toggle('on', prefs.fingerDraws);
     $('#btnLock').classList.toggle('on', prefs.lock);
     $('#btnLock').disabled = false;
@@ -944,7 +957,7 @@
       if (g.type === 'pinch') { if (!touches.size) g = null; return; }
       if (e.pointerId !== g.id) return;
       const cur = g; g = null;
-      if (cur.type === 'draw') { cur.sess.end(e); return; }
+      if (cur.type === 'draw') { if (e.type === 'pointercancel') cur.sess.cancel(); else cur.sess.end(e); return; }
       if (cur.type === 'fdraw') {
         if (cur.sess) { cur.sess.end(e); return; }
         if (e.type !== 'pointerup') return;
@@ -1104,6 +1117,7 @@
     closeConvert();
     renderBlocks();
     commit();
+    if (Ink.tool.kind === 'lasso') { Ink.tool.kind = 'pen'; syncTools(); }
   }
 
   /* ---------------- handwriting training ---------------- */
@@ -1298,6 +1312,16 @@
       };
       sr.appendChild(x);
     }
+    $$('#tsizeRow button').forEach(x => {
+      x.classList.toggle('on', x.dataset.t === prefs.textSize);
+      x.onclick = () => {
+        finishEdit();
+        setPref('textSize', x.dataset.t);
+        $$('#tsizeRow button').forEach(y => y.classList.toggle('on', y === x));
+        applyBodyClasses();
+        renderBlocks();
+      };
+    });
     $$('#zoomRow button').forEach(x => x.onclick = () => {
       const z = x.dataset.z;
       userZoom = z === 'fit' ? 1 : Math.max(0.6, Math.min(4, userZoom * (z === 'in' ? 1.25 : 0.8)));
@@ -1339,8 +1363,8 @@
   /* ---------------- welcome note ---------------- */
   function welcome() {
     const blocks = [
-      { id: uid(), type: 'text', src: '# Write anywhere\nWrite on the page with the S Pen or your finger, then tap **⇄ Convert**: your handwriting becomes neat text like this, and formulas become typeset math. **Aa Text / ∑ Math / Auto** decides how it is read, and you can fix anything before it goes in.\n[ ] Try it: write a sentence, then x^2 + y^2 = r^2 below it, and Convert with Auto' },
-      { id: uid(), type: 'text', src: '# Fingers & pages\n- ☝️ Finger writes: one finger writes, two fingers scroll and pinch-zoom\n- 🔒 Lock: only two fingers move the page\n- Pages are Letter or A4 (⋮ menu); writing flows onto the next page' },
+      { id: uid(), type: 'text', src: '# Write anywhere\nWrite on the page with the S Pen or your finger. To turn handwriting into neat text or a formula, circle it with ◌ Lasso and tap **⇄ Convert**. **Aa Text / ∑ Math / Auto** decides how it is read, and you can fix it before it goes in.\n[ ] Try it: write x^2 + y^2 = r^2, lasso it, and Convert with ∑ Math' },
+      { id: uid(), type: 'text', src: '# Pen tools\n- Solid, dashed and dotted lines; 📐 Shapes straightens lines and shapes — or hold the pen still at the end of a stroke\n- Hold the S Pen side button to erase\n- ☝️ Finger writes: one finger writes, two scroll · 🔒 Lock: only two fingers move the page' },
       { id: uid(), type: 'text', src: '# Typing\nTap empty space to type. teh app tidies spelling , spacing and capitals when you tap ✨ Clean up.\nmath inside sentences is spotted automatically: E = mc^2 and a^2 + b^2 = c^2.' },
       { id: uid(), type: 'math', src: 'int_0^oo e^(-x^2) dx = sqrt(pi)/2' }
     ];
@@ -1353,11 +1377,10 @@
     $$('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
     $('#btnConvert').addEventListener('pointerdown', e => e.preventDefault());
     $('#btnConvert').onclick = () => {
-      if (inkSel) return convertInk(inkSel.id, inkSel.idx);
-      const inks = note.blocks.filter(b => b.type === 'ink' && b.strokes.length);
-      if (!inks.length) { toast('Write something on the page first'); return; }
-      const target = inks.find(b => b.id === lastInkId) || inks[inks.length - 1];
-      convertInk(target.id, null);
+      if (inkSel && inkSel.idx) return convertInk(inkSel.id, inkSel.idx);
+      // conversion works on what you lasso
+      Ink.tool.kind = 'lasso'; syncTools();
+      toast('Circle the handwriting to convert with the lasso, then tap Convert');
     };
     $('#cvCancel').onclick = () => closeConvert();
     $('#cvInsert').onclick = () => insertConverted();
@@ -1411,7 +1434,32 @@
     });
   }
 
+  /* S Pen side button: Android hands us the points (Chrome would otherwise treat it as text selection) */
+  let eraseTouched = null;
+  function penErase(pts, phase) {
+    const dot = $('#eraserDot');
+    if (phase === 'start') { finishEdit(); clearInkSel(); eraseTouched = new Set(); dot.hidden = false; }
+    if (!eraseTouched) eraseTouched = new Set();
+    for (const [x, y] of pts) {
+      dot.style.left = x + 'px'; dot.style.top = y + 'px';
+      const el = document.elementFromPoint(x, y);
+      const blk = el && el.closest && el.closest('.block.ink');
+      if (blk && blk._ink && blk._ink.eraseClient(x, y)) eraseTouched.add(blk.dataset.id);
+    }
+    if (phase === 'end' || phase === 'cancel') {
+      dot.hidden = true;
+      if (eraseTouched.size) {
+        for (const id of eraseTouched) { const b = blockById(id); if (b && !b.strokes.length) note.blocks.splice(blockIndex(id), 1); }
+        renderBlocks();
+        commit();
+      }
+      eraseTouched = null;
+    }
+    return true;
+  }
+
   window.InkNotes = {
+    penErase,
     onBack() {
       if (!$('#train').hidden) { closeTrain(); return true; }
       if (!$('#convert').hidden) { closeConvert(); return true; }
