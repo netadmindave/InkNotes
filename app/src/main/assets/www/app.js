@@ -866,7 +866,7 @@
 
     sc.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch') {
-        const penNear = penDown || performance.now() - lastPen < PEN_GRACE;
+        const penNear = penDown || performance.now() - lastPen < PEN_GRACE || !!(A && A.penNear && A.penNear());
         if (penNear || isPalm(e) || ignored.has(e.pointerId)) {
           ignored.add(e.pointerId);
           suppressTouchClickUntil = Date.now() + 1500;
@@ -908,7 +908,7 @@
 
     window.addEventListener('pointermove', (e) => {
       if (ignored.has(e.pointerId)) return;
-      if (e.pointerType === 'touch' && touches.has(e.pointerId) && (penDown || isPalm(e))) { cancelTouchGesture(); return; }
+      if (e.pointerType === 'touch' && touches.has(e.pointerId) && (penDown || isPalm(e) || (A && A.penNear && A.penNear()))) { cancelTouchGesture(); return; }
       if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!g) return;
       if (g.type === 'draw' && e.pointerId === g.id) { e.preventDefault(); g.sess.move(e); return; }
@@ -1015,7 +1015,9 @@
       const res = await InkRec.convert(copyStrokes(strokes), prefs.mode);
       if (!res.length) { toast('Couldn\'t read that'); return; }
       ensureSpell();
-      res.forEach(r => { if (r.type === 'text') r.src = Cleanup.cleanText(r.src, { userDict, autoMath: prefs.autoMath }).text; });
+      res.forEach(r => {
+        if (r.type === 'text') { r.src = Cleanup.cleanText(applyCorrections(r.src), { userDict, autoMath: prefs.autoMath }).text; r.orig = r.src; }
+      });
       cv = { id, idx, items: res };
       renderConvert();
       $('#convert').hidden = false;
@@ -1093,6 +1095,7 @@
       at += 1;
     }
     for (const it of items) {
+      if (it.type === 'text' && it.orig) learnCorrections(it.orig, it.src);
       const nb = { id: uid(), type: it.type, src: it.type === 'math' ? it.src.trim() : it.src };
       note.blocks.splice(at++, 0, nb);
     }
@@ -1101,6 +1104,106 @@
     closeConvert();
     renderBlocks();
     commit();
+  }
+
+  /* ---------------- handwriting training ---------------- */
+  let tr = null;
+  function openTrain() {
+    closeMenu();
+    finishEdit();
+    const k = Train.SYMBOLS.findIndex(([s]) => Train.count(s) < 3);
+    tr = { i: k < 0 ? 0 : k, savedTool: Ink.tool.kind, savedSize: Ink.tool.size };
+    Ink.tool.kind = 'pen'; Ink.tool.size = 3;
+    $('#train').hidden = false;
+    showTrain();
+  }
+  function closeTrain() {
+    if (!tr) return;
+    Ink.tool.kind = tr.savedTool; Ink.tool.size = tr.savedSize;
+    tr = null;
+    $('#train').hidden = true;
+  }
+  function showTrain() {
+    const [sym, tok] = Train.SYMBOLS[tr.i];
+    $('#trPrompt').innerHTML = /^[A-Za-z0-9()<>+=]$/.test(sym) ? '<span style="font-family:var(--hand)">' + MathText.escapeHtml(sym) + '</span>'
+      : MathText.renderMath(tok, false).html;
+    const n = Train.count(sym);
+    $('#trInfo').textContent = 'Write “' + sym + '”  ·  ' + n + ' of 3 samples' + (n >= 3 ? ' ✓ (more is fine)' : '');
+    const svg = $('#trPad');
+    tr.block = { strokes: [], w: 600, h: 300 };
+    Ink.render(svg, tr.block);
+    tr.sess = Ink.session(svg, tr.block, {});
+    const chips = $('#trChips');
+    chips.innerHTML = '';
+    Train.SYMBOLS.forEach(([s], k) => {
+      const b = document.createElement('button');
+      const c = Train.count(s);
+      b.className = (c >= 3 ? 'done' : '') + (k === tr.i ? ' on' : '');
+      b.innerHTML = MathText.escapeHtml(s) + (c ? '<sup>' + c + '</sup>' : '');
+      b.onclick = () => { tr.i = k; showTrain(); };
+      chips.appendChild(b);
+    });
+  }
+  function wireTrain() {
+    const svg = $('#trPad');
+    let active = null;
+    svg.addEventListener('pointerdown', (e) => {
+      if (!tr || active !== null) return;
+      e.preventDefault();
+      active = e.pointerId;
+      try { svg.setPointerCapture(e.pointerId); } catch (err) { }
+      tr.sess.start(e);
+    });
+    svg.addEventListener('pointermove', (e) => { if (tr && e.pointerId === active) { e.preventDefault(); tr.sess.move(e); } });
+    const end = (e) => { if (tr && e.pointerId === active) { active = null; tr.sess.end(e); } };
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
+    $('#trClear').onclick = () => showTrain();
+    $('#trSkip').onclick = () => { tr.i = (tr.i + 1) % Train.SYMBOLS.length; showTrain(); };
+    $('#trSave').onclick = () => {
+      if (!tr.block.strokes.length) { toast('Write the symbol first'); return; }
+      const sym = Train.SYMBOLS[tr.i][0];
+      Train.addSample(sym, tr.block.strokes);
+      if (Train.count(sym) >= 3) {
+        const next = Train.SYMBOLS.findIndex(([s], k) => k > tr.i && Train.count(s) < 3);
+        tr.i = next < 0 ? (tr.i + 1) % Train.SYMBOLS.length : next;
+      }
+      showTrain();
+    };
+    $('#trDone').onclick = closeTrain;
+    $('#trReset').onclick = async () => {
+      if (await ask('Delete all your handwriting samples?', 'Delete')) { Train.clear(); showTrain(); }
+    };
+  }
+
+  /* ---------------- learning from corrections ---------------- */
+  let corrections = {};
+  try { corrections = JSON.parse(store.getPref('corrections') || '{}') || {}; } catch (e) { }
+  const wordKey = (w) => w.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
+  function applyCorrections(text) {
+    if (!text) return text;
+    return text.replace(/[A-Za-z][A-Za-z']*/g, (w) => {
+      const c = corrections[w.toLowerCase()];
+      if (!c) return w;
+      return w[0] === w[0].toUpperCase() && c[0] === c[0].toLowerCase() ? c[0].toUpperCase() + c.slice(1) : c;
+    });
+  }
+  function learnCorrections(before, after) {
+    const a = (before || '').split(/\s+/).filter(Boolean), b = (after || '').split(/\s+/).filter(Boolean);
+    if (!a.length || a.length !== b.length) return;
+    let n = 0;
+    for (let i = 0; i < a.length; i++) {
+      const x = wordKey(a[i]), y = b[i].replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9']+$/g, '');
+      if (!x || !y || x === y.toLowerCase() || !/^[a-z']+$/.test(x) || !/^[A-Za-z']+$/.test(y)) continue;
+      if (Math.abs(x.length - y.length) > 3) continue;
+      // a capital only at the first letter is usually just sentence position — store it lowercase
+      corrections[x] = /^[A-Z][a-z']+$/.test(y) ? y.toLowerCase() : y; n++;
+    }
+    if (n) {
+      const keys = Object.keys(corrections);
+      if (keys.length > 500) keys.slice(0, keys.length - 500).forEach(k => delete corrections[k]);
+      store.setPref('corrections', JSON.stringify(corrections));
+    }
   }
 
   /* ---------------- export ---------------- */
@@ -1209,6 +1312,7 @@
     $('#miPdf').onclick = () => { closeMenu(); finishEdit(); saveNow(); setTimeout(() => A ? A.printPdf(note.title || 'InkNotes', note.size || 'letter') : window.print(), 150); };
     $('#miShare').onclick = () => { closeMenu(); finishEdit(); const md = toMarkdown(); if (A) A.shareText(note.title || 'Note', md); else console.log(md); };
     $('#miHelp').onclick = () => { closeMenu(); openHelp(); };
+    $('#miTrain').onclick = () => openTrain();
     $('#miDelete').onclick = async () => {
       closeMenu();
       if (!(await ask('Delete “' + (note.title || 'Untitled') + '”? This can\'t be undone.', 'Delete'))) return;
@@ -1262,7 +1366,15 @@
     $('#btnUndo').onclick = undo;
     $('#btnRedo').onclick = redo;
     $('#btnMore').onclick = (e) => { e.stopPropagation(); $('#menu').hidden ? openMenu() : closeMenu(); };
-    $('#btnMenu').onclick = () => document.body.classList.toggle('drawer');
+    $('#btnMenu').onclick = () => {
+      if (window.innerWidth >= 1100) {
+        const c = !document.body.classList.contains('sidecollapsed');
+        document.body.classList.toggle('sidecollapsed', c);
+        store.setPref('sideCollapsed', c ? '1' : '0');
+        setTimeout(() => { applyZoom(); }, 220);
+      } else document.body.classList.toggle('drawer');
+    };
+    document.body.classList.toggle('sidecollapsed', store.getPref('sideCollapsed') === '1');
     $('#scrim').onclick = () => document.body.classList.remove('drawer');
     $('#btnNew').onclick = () => { document.body.classList.remove('drawer'); newNote(); $('#title').focus(); };
     $('#search').oninput = renderList;
@@ -1301,6 +1413,7 @@
 
   window.InkNotes = {
     onBack() {
+      if (!$('#train').hidden) { closeTrain(); return true; }
       if (!$('#convert').hidden) { closeConvert(); return true; }
       if (!$('#help').hidden) { $('#help').hidden = true; return true; }
       if (inkSel) { clearInkSel(); return true; }
@@ -1317,7 +1430,9 @@
   /* ---------------- boot ---------------- */
   applyBodyClasses();
   buildMathbar();
+  Train.init(store);
   buildPenbar();
+  wireTrain();
   buildMenu();
   wire();
   setModeUI(prefs.mode);

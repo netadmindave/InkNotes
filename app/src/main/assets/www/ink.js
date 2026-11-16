@@ -146,7 +146,9 @@
     }
 
     function start(e) {
-      const sideButton = e.pointerType === 'pen' && ((e.buttons & 2) === 2 || (e.buttons & 32) === 32 || e.button === 5);
+      const A = window.Android;
+      const sideButton = e.pointerType === 'pen' && ((e.buttons & 2) === 2 || (e.buttons & 32) === 32 || e.button === 5 ||
+        !!(A && A.penButton && A.penButton()));
       mode = sideButton || tool.kind === 'eraser' ? 'erase' : tool.kind === 'lasso' ? 'lasso' : 'draw';
       const [x, y] = toLocal(e);
       t0 = e.timeStamp;
@@ -173,6 +175,13 @@
         if (mode === 'erase') { eraseAt(x, y); continue; }
         if (mode === 'lasso') { lasso.push([x, y]); continue; }
         if (!cur) continue;
+        // side button pressed just after touching down: switch this stroke to erasing
+        if (cur.p.length < 6 && ev.pointerType === 'pen' && ((ev.buttons & 2) === 2 || (window.Android && Android.penButton && Android.penButton()))) {
+          if (curPath) curPath.remove();
+          cur = null; curPath = null; mode = 'erase';
+          eraseAt(x, y);
+          continue;
+        }
         const l = cur.p[cur.p.length - 1];
         if (Math.hypot(x - l[0], y - l[1]) < 0.6) continue;
         const maxH = opts.maxH ? opts.maxH() : 1e9;

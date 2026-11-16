@@ -140,6 +140,7 @@
   function radicalContents(st, others, H) {
     const b = bbox(st);
     if (b.w < 0.8 * H || b.h < 0.6 * H) return null;
+    if (b.w < 0.75 * b.h) return null;                       // narrow tall strokes are ∫, ( or letters, not √
     // right part of a √ is a near-horizontal line along the top
     const right = st.p.filter(q => q[0] > b.x0 + 0.55 * b.w);
     if (right.length < 2) return null;
@@ -151,6 +152,8 @@
     let low = st.p[0];
     for (const q of st.p) if (q[1] > low[1]) low = q;
     if (low[0] > b.x0 + 0.5 * b.w) return null;
+    const li = st.p.indexOf(low);
+    if (li < 0.08 * st.p.length || li > 0.9 * st.p.length) return null;   // a √ bottoms out mid-stroke
     const inside = others.filter(o => o !== st && bbox(o).x0 > b.x0 + 0.2 * b.w && bbox(o).cx > b.x0 + 0.25 * b.w && bbox(o).cx < b.x1 + 0.1 * H && bbox(o).cy > b.y0 && bbox(o).cy < b.y1 + 0.1 * H);
     return inside.length ? inside : null;
   }
@@ -196,7 +199,11 @@
         const stacked = isFlat(b, H) && isFlat(L, H) && ov > 0.5 * narrow;                                        // =
         const vgap = Math.max(b.y0 - L.y1, L.y0 - b.y1, 0);
         const centerIn = (b.cx >= L.x0 - 1 && b.cx <= L.x1 + 1) || (L.cx >= b.x0 - 1 && L.cx <= b.x1 + 1);
-        if (((ov > 0.45 * narrow || centerIn) && vgap < 0.3 * H) || dotOver || stacked) {
+        // a small mark above/below a much taller symbol is a limit or index, not part of it (∫ with ∞ under it)
+        const big = Math.max(L.w, L.h) > Math.max(b.w, b.h) ? L : b, sm = big === L ? b : L;
+        const yOv = Math.min(big.y1, sm.y1) - Math.max(big.y0, sm.y0);
+        const separate = Math.max(big.w, big.h) > 2.2 * Math.max(sm.w, sm.h) && yOv < 0.5 * sm.h;
+        if (!separate && (((ov > 0.45 * narrow || centerIn) && vgap < 0.3 * H) || dotOver || stacked)) {
           last.strokes.push(st); last.b = bboxOf(last.strokes); continue;
         }
       }
@@ -236,9 +243,52 @@
     return refine(pick, sym, H);
   }
 
+  /* shape tests for symbols the text recognizer often gets wrong */
+  function segIntersect(a, b, c, d) {
+    const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+  }
+  function isPlusShape(sym) {
+    if (sym.strokes.length !== 2) return false;
+    const [b1, b2] = sym.strokes.map(st => bbox(st));
+    const hz = b1.w > 1.8 * b1.h ? b1 : b2.w > 1.8 * b2.h ? b2 : null;
+    const vt = b1.h > 1.8 * b1.w ? b1 : b2.h > 1.8 * b2.w ? b2 : null;
+    if (!hz || !vt || hz === vt) return false;
+    const r = hz.w / vt.h;
+    if (r < 0.45 || r > 2.2) return false;
+    const fx = (vt.cx - hz.x0) / hz.w, fy = (hz.cy - vt.y0) / vt.h;
+    return fx > 0.25 && fx < 0.75 && fy > 0.3 && fy < 0.72;
+  }
+  function isInfinityShape(sym, H) {
+    const b = sym.b;
+    if (b.w < 1.25 * b.h || b.w > 4.5 * b.h || b.h < 0.15 * H) return false;
+    // one (or two) strokes that cross themselves near the middle
+    const pts = sym.strokes.flatMap(st => st.p);
+    // passes through (nearly) the same spot twice, near the middle
+    const gap = Math.max(4, Math.floor(pts.length / 5));
+    for (let i = 0; i < pts.length; i++) {
+      if (Math.abs(pts[i][0] - b.cx) > 0.2 * b.w) continue;
+      for (let j = i + gap; j < pts.length; j++) {
+        if (Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]) < 0.07 * b.w + 1) return true;
+      }
+    }
+    for (let i = 0; i < pts.length - 1; i++) {
+      for (let j = i + 3; j < pts.length - 1; j++) {
+        if (segIntersect(pts[i], pts[i + 1], pts[j], pts[j + 1])) {
+          const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+          if (Math.abs(mx - b.cx) < 0.25 * b.w) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /** Geometry-based corrections to a recognised character. */
   function refine(pick, sym, H) {
     const b = sym.b;
+    if (isPlusShape(sym)) return '+';
+    if (isInfinityShape(sym, H) && !/^\d$/.test(pick)) return 'oo';
+    if (sym.strokes.length === 1 && isFlat(b, H)) return '-';
     if (pick === '_' || pick === '~' && sym.strokes.length === 1 && isFlat(b, H)) pick = '-';
     // a very tall, narrow S / f / ∫ is an integral sign (J, l, 1 stay letters/digits)
     if (b.h > 1.7 * H && /^(S|s|f|ʃ|int)$/.test(pick) && b.w < 0.7 * b.h) pick = 'int';
@@ -293,6 +343,17 @@
     const plain = nodes.filter(n => n.kind === 'sym' && !isOp(n) && !BIGOPS.has(n.ch) && !isDot(n.b, 999));
     const refH = plain.length >= 3 ? median(plain.map(n => n.b.h)) : Math.max(rowH, median(plain.map(n => n.b.h)) || 0);
     const refCy = median((plain.length ? plain : nodes).map(n => n.b.cy));
+    const rowBase = plain.length >= 2 ? median(plain.map(n => n.b.y1)) : null;   // where letters sit
+    // limits of ∫ / ∑ written slightly to the left of the sign: move them right behind it
+    nodes = nodes.slice();
+    for (const op of nodes.filter(n => n.kind === 'sym' && BIGOPS.has(n.ch))) {
+      const B = op.b;
+      const lims = nodes.filter(m => m !== op && m.b.x1 > B.x0 - 0.9 * refH && m.b.x0 < B.x0 &&
+        m.b.h < 0.8 * refH && (m.b.y0 > B.y1 - 0.45 * B.h || m.b.y1 < B.y0 + 0.45 * B.h));
+      if (!lims.length) continue;
+      nodes = nodes.filter(m => !lims.includes(m));
+      nodes.splice(nodes.indexOf(op) + 1, 0, ...lims.sort((a, c) => a.b.x0 - c.b.x0));
+    }
     const out = [];
     let i = 0;
     let base = null;
@@ -305,7 +366,7 @@
         let j = i + 1;
         while (j < nodes.length) {
           const m = nodes[j];
-          const near = n.ch === 'sum' ? (m.b.cx < B.x1 + 0.2 * refH) : (m.b.x0 < B.x1 + 0.9 * refH);
+          const near = m.b.x0 < B.x0 || (n.ch === 'sum' ? (m.b.cx < B.x1 + 0.2 * refH) : (m.b.x0 < B.x1 + 0.9 * refH));
           if (!near) break;
           if (m.b.h < 0.8 * refH && m.b.y1 < B.y0 + 0.45 * B.h) { up.push(m); j++; continue; }
           if (m.b.h < 0.8 * refH && m.b.y0 > B.y1 - 0.45 * B.h) { dn.push(m); j++; continue; }
@@ -322,10 +383,12 @@
       // superscript / subscript relative to the previous base symbol
       if (base && !flat && !isOp(n) && n.kind === 'sym') {
         let B = base.b.h > 0.4 * refH ? base.b : { cy: refCy, h: refH, y0: refCy - refH / 2, y1: refCy + refH / 2 };
-        // letters with descenders: compare against the body of the letter, not its tail
-        if (base.kind === 'sym' && /^[gjpqy]$/.test(base.ch || '')) {
-          const h = B.h * 0.62;
-          B = { y0: B.y0, y1: B.y0 + h, h, cy: B.y0 + h / 2 };
+        // letters that dip below the line (y, p, g, J…): compare against the body of the letter, not its tail
+        const dips = /^[gjpqyY]$/.test(base.ch || '') || (rowBase !== null && B.y1 > rowBase + 0.3 * refH && B.y0 > rowBase - 1.1 * refH);
+        if (base.kind === 'sym' && dips) {
+          const y1 = Math.min(B.y1, rowBase !== null ? Math.max(rowBase, B.y0 + 0.45 * B.h) : B.y0 + 0.62 * B.h);
+          const h = Math.max(4, y1 - B.y0);
+          B = { y0: B.y0, y1, h, cy: B.y0 + h / 2 };
         }
         const notBig = n.b.h < 1.3 * Math.max(B.h, refH * 0.8);
         // raised: sits above the middle of the base; lowered: starts below the middle of the base
@@ -336,9 +399,15 @@
           let j = i + 1;
           while (j < nodes.length) {
             const m = nodes[j];
-            const same = isSup ? (m.b.cy < B.cy - 0.2 * B.h) : (m.b.cy > B.cy + 0.2 * B.h);
+            const same = isSup ? (m.b.cy < B.cy - 0.2 * B.h && m.b.y1 < B.cy + 0.15 * B.h)
+                               : (m.b.cy > B.cy + 0.2 * B.h && m.b.y0 > B.cy - 0.15 * B.h);
             if (!same || m.b.x0 > grp[grp.length - 1].b.x1 + 0.9 * refH) break;
             grp.push(m); j++;
+          }
+          if (isSup && grp.length === 1 && grp[0].kind === 'sym') {
+            // a lone raised character is almost always a digit: z→2, o→0, l→1, s→5, g/q→9
+            const map = { z: '2', Z: '2', o: '0', O: '0', l: '1', I: '1', '|': '1', s: '5', S: '5', g: '9', q: '9', b: '6' };
+            if (map[grp[0].ch]) grp[0].ch = map[grp[0].ch];
           }
           const inner = emitRow(grp, isSub);   // subscripts stay one level (n_{p0}); superscripts may nest (e^{-x^2})
           out[out.length - 1] = out[out.length - 1] + (isSup ? '^' : '_') + (inner.length === 1 ? inner : '(' + inner + ')');
@@ -406,6 +475,22 @@
     if (leftovers.length) {
       const cands = await recognizeGroups(leftovers.map(s => s.strokes));
       leftovers.forEach((s, k) => { s.ch = chooseSymbol(cands[k], s, H); });
+    }
+    // 3) your own handwriting samples (✍ Train) correct what the text recogniser can't read
+    if (window.Train && Train.has) {
+      for (const sym of collectSyms(tree, [])) {
+        if (sym.strokes.length === 1 && (isFlat(sym.b, H) || isDot(sym.b, H))) continue;
+        if (isPlusShape(sym) || isInfinityShape(sym, H)) continue;
+        const r = Train.classify(sym.strokes);
+        if (!r.length || r[0].token === sym.ch) continue;
+        const best = r[0], second = r.find(x => x.token !== best.token);
+        const margin = second ? second.d / Math.max(1e-6, best.d) : 9;
+        const special = !/^[A-Za-z0-9]$/.test(best.token);
+        // matches score ~0.3–0.7, different symbols ~1.5+; letters/digits need a clearer win to override the recogniser
+        if ((special && best.d < 1.4 && margin > 1.3) || (best.d < 0.9 && margin > 1.8) || (sym.ch === '?' && best.d < 2)) {
+          sym.ch = best.token;
+        }
+      }
     }
     const fixRows = (nodes) => { fixDigitsContext(nodes); nodes.forEach(n => { if (n.num) { fixRows(n.num); fixRows(n.den); } if (n.body) fixRows(n.body); }); };
     fixRows(tree);

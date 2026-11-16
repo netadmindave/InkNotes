@@ -87,6 +87,7 @@
     <hr>
     <button class="mi" id="miPdf">Export PDF / Print</button>
     <button class="mi" id="miShare">Share as text (LaTeX)</button>
+    <button class="mi" id="miTrain">✍ Train my handwriting</button>
     <button class="mi" id="miHelp">How to write math</button>
     <button class="mi danger" id="miDelete">Delete this note</button>
   </div>
@@ -100,6 +101,27 @@
         <span class="grow"></span>
         <button class="pill" id="cvCancel">Cancel</button>
         <button class="pill primary" id="cvInsert">Insert</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="train" class="modal" hidden>
+    <div class="card wide">
+      <h2>Train my handwriting</h2>
+      <p class="muted">Write the symbol in the box the way you normally do — 3 samples each is plenty. Your samples are used when converting formulas, especially for symbols like ∞, π, ∑ and Greek letters. Train as many or as few as you like.</p>
+      <div class="trhead"><div id="trPrompt"></div><div id="trInfo"></div></div>
+      <svg id="trPad"></svg>
+      <div class="cvbar">
+        <button class="pill" id="trClear">Clear</button>
+        <button class="pill" id="trSkip">Skip</button>
+        <span class="grow"></span>
+        <button class="pill primary" id="trSave">Save sample</button>
+      </div>
+      <div id="trChips"></div>
+      <div class="cvbar">
+        <button class="link" id="trReset">Delete all training</button>
+        <span class="grow"></span>
+        <button class="pill" id="trDone">Done</button>
       </div>
     </div>
   </div>
@@ -141,6 +163,7 @@
 <script src="mathtext.js"></script>
 <script src="cleanup.js"></script>
 <script src="ink.js"></script>
+<script src="train.js"></script>
 <script src="recognize.js"></script>
 <script src="app.js"></script>
 </body>
