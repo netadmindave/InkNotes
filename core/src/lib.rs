@@ -8,3 +8,4 @@ pub mod recognize;
 pub mod asciimath;
 pub mod mathtext;
 pub mod cleanup;
+pub mod jni;

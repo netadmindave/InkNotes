@@ -118,7 +118,7 @@ fn tokenize(s: &str) -> Vec<Tok> {
 
 /// One parsed piece; bracket groups remember their content so arguments can drop the brackets.
 #[derive(Clone, Debug)]
-struct Piece { tex: String, inner: Option<String>, elems: Option<Vec<String>>, is_rows: bool }
+struct Piece { tex: String, inner: Option<String>, elems: Option<Vec<String>>, #[allow(dead_code)] is_rows: bool }
 impl Piece {
     fn plain(tex: String) -> Self { Piece { tex, inner: None, elems: None, is_rows: false } }
     fn arg(&self) -> String { self.inner.clone().unwrap_or_else(|| self.tex.clone()) }
