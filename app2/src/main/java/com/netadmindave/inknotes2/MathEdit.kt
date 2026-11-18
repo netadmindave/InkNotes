@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.asImageBitmap
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -73,4 +74,19 @@ fun inkBitmap(strokes: JSONArray, maxW: Int = 640, maxH: Int = 260): Bitmap? {
     c.scale(s, s); c.translate(-b.left, -b.top)
     ops.forEach { c.drawPath(it.path, it.paint) }
     return bm
+}
+
+/** A formula drawn at its natural size (`sizeDp` = font size), shrunk only if it's wider than the space. */
+@Composable
+fun MainActivity.TexImage(src: String, sizeDp: Float, modifier: Modifier = Modifier) {
+    val px = sizeDp * resources.displayMetrics.density
+    val bm = androidx.compose.runtime.remember(src, px) {
+        render.math(src, px)?.let { d ->
+            val w = d.intrinsicWidth.coerceAtLeast(1); val h = d.intrinsicHeight.coerceAtLeast(1)
+            val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            d.setBounds(0, 0, w, h); d.draw(Canvas(b)); b.asImageBitmap()
+        }
+    }
+    if (bm == null) androidx.compose.material3.Text(src, modifier)
+    else androidx.compose.foundation.Image(bm, null, modifier, contentScale = androidx.compose.ui.layout.ContentScale.Inside, alignment = androidx.compose.ui.Alignment.CenterStart)
 }

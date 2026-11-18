@@ -64,10 +64,7 @@ fun MainActivity.ReviewDialog(rows: List<ReviewRow>) {
                                 } else {
                                     Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).border(if (mathRow === r) 2.dp else 1.dp, if (mathRow === r) Accent else Color(0xFFD8D0BD), RoundedCornerShape(8.dp))
                                         .background(Color.White, RoundedCornerShape(8.dp)).clickable(enabled = !r.skip) { mathRow = r }.padding(8.dp)) {
-                                        val t = r.tex
-                                        AndroidView(factory = { c -> android.widget.ImageView(c) }, update = { iv ->
-                                            iv.setImageDrawable(render.math(latexToSrc(t), 56f)); iv.adjustViewBounds = true; iv.scaleType = android.widget.ImageView.ScaleType.FIT_START
-                                        }, modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp))
+                                        TexImage(latexToSrc(r.tex), 26f, Modifier.fillMaxWidth())
                                     }
                                     Text(if (mathRow === r) "Editing below" else "Tap the formula to edit it", fontSize = 12.sp, color = Color(0xFF8A8A8A))
                                 }

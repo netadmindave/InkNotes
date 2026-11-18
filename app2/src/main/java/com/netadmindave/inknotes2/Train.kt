@@ -245,8 +245,7 @@ fun MainActivity.Practice(math: Boolean) {
             color = Color(0xFF15803D), fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Text(if (math) "Write this formula:" else "Copy this text:", fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
         Box(Modifier.fillMaxWidth().background(Color(0xFFF3EEE2), RoundedCornerShape(8.dp)).padding(10.dp)) {
-            if (math) AndroidView(factory = { c -> android.widget.ImageView(c) }, update = { iv -> iv.setImageDrawable(render.math(target, 64f)); iv.adjustViewBounds = true; iv.scaleType = android.widget.ImageView.ScaleType.FIT_START },
-                modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp))
+            if (math) TexImage(target, 30f, Modifier.fillMaxWidth())
             else Text(target, fontSize = 22.sp)
         }
         AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(if (math) 300.dp else 260.dp).padding(top = 8.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
@@ -255,8 +254,7 @@ fun MainActivity.Practice(math: Boolean) {
                 Text(if (ok) "✓ Read correctly" else "✗ Read differently", fontWeight = FontWeight.Bold)
                 if (math) {
                     Text("I read:", fontSize = 13.sp)
-                    AndroidView(factory = { c -> android.widget.ImageView(c) }, update = { iv -> iv.setImageDrawable(render.math(read, 56f)); iv.adjustViewBounds = true; iv.scaleType = android.widget.ImageView.ScaleType.FIT_START },
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp))
+                    TexImage(read, 26f, Modifier.fillMaxWidth())
                     Text(read, fontSize = 12.sp, color = Muted)
                 } else {
                     val tw = words(target); val rw = words(read)

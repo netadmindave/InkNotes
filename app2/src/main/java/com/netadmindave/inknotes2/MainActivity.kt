@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -793,15 +794,16 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun MathPreview(src: String, math: Boolean) {
-        AndroidView(factory = { ctx -> android.widget.ImageView(ctx) }, update = { iv ->
-            if (math) iv.setImageDrawable(render.math(src, 64f))
-            else {
+        if (math) TexImage(src, 28f, Modifier.fillMaxWidth().padding(vertical = 8.dp).background(Paper))
+        else {
+            val bm = remember(src) {
                 val l = render.layoutText(src, 900f)
-                val bm = android.graphics.Bitmap.createBitmap(maxOf(1, l.w.toInt() + 8), maxOf(1, l.h.toInt() + 8), android.graphics.Bitmap.Config.ARGB_8888)
-                l.draw(android.graphics.Canvas(bm)); iv.setImageBitmap(bm)
+                val b = android.graphics.Bitmap.createBitmap(maxOf(1, l.w.toInt() + 8), maxOf(1, l.h.toInt() + 8), android.graphics.Bitmap.Config.ARGB_8888)
+                l.draw(android.graphics.Canvas(b)); b.asImageBitmap()
             }
-            iv.adjustViewBounds = true; iv.scaleType = android.widget.ImageView.ScaleType.FIT_START
-        }, modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).padding(vertical = 8.dp).background(Paper))
+            androidx.compose.foundation.Image(bm, null, Modifier.fillMaxWidth().padding(vertical = 8.dp).background(Paper),
+                contentScale = androidx.compose.ui.layout.ContentScale.Inside, alignment = Alignment.CenterStart)
+        }
     }
 
     @OptIn(ExperimentalLayoutApi::class)
