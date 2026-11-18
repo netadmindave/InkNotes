@@ -651,7 +651,11 @@ class MainActivity : ComponentActivity() {
         val kind0 = e.item.optString("type")
         var kind by remember(e) { mutableStateOf(kind0) }
         var src by remember(e) { mutableStateOf(e.item.optString("src")) }
-        var cells by remember(e) { mutableStateOf(e.item.optJSONArray("cells")?.let { a -> List(a.length()) { r -> a.getJSONArray(r).let { row -> List(row.length()) { row.optString(it) } } } } ?: emptyList()) }
+        var cells by remember(e) {
+            val a = e.item.optJSONArray("cells")
+            val init: List<List<String>> = if (a == null) emptyList() else List(a.length()) { r -> val row = a.getJSONArray(r); List(row.length()) { k -> row.optString(k) } }
+            mutableStateOf(init)
+        }
         var unknown by remember(e) { mutableStateOf(mapOf<String, List<String>>()) }
         val isNew = Core.call(h, "page", jo("page" to e.page)).let { p -> (p as? JSONObject)?.optJSONArray("items")?.let { a -> (0 until a.length()).none { a.getJSONObject(it).optString("id") == e.item.optString("id") } } ?: true }
         fun close() { editing = null }
@@ -746,6 +750,7 @@ class MainActivity : ComponentActivity() {
         FlowRow { for ((l, v) in keys) OutlinedButton(onClick = { onKey(v) }, Modifier.padding(2.dp), contentPadding = PaddingValues(horizontal = 8.dp)) { Text(l) } }
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     @Composable
     fun Trainer() {
         val counts = remember { mutableStateOf((Core.utilRaw("trainCount", "null") as? JSONArray)?.let { a -> List(a.length()) { a.getJSONArray(it).let { p -> p.getString(0) to p.getInt(1) } } } ?: emptyList()) }
