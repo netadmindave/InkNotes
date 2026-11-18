@@ -474,7 +474,7 @@ class InkView(context: Context, val render: Renderer) : View(context) {
     }
 
     /** A contact the size of a palm or wrist rather than a fingertip. */
-    private fun isPalm(ev: MotionEvent, i: Int) = ev.getTouchMajor(i) > bigPx || ev.getToolType(i) == MotionEvent.TOOL_TYPE_PALM
+    private fun isPalm(ev: MotionEvent, i: Int) = ev.getTouchMajor(i) > bigPx || ev.getToolType(i) == 5 /* TOOL_TYPE_PALM */
 
     private val bigPx = 11f * resources.displayMetrics.xdpi / 25.4f
     private val slopPx = 12f * resources.displayMetrics.density
