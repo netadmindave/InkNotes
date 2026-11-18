@@ -79,6 +79,32 @@ pub fn split_lines(strokes: &[Stroke]) -> Vec<Vec<usize>> {
         }
         if !merged { break; }
     }
+    // a short raised group (exponent like ¹⁶) just above the end of a line belongs to that line
+    loop {
+        let mut merged = false;
+        for li in 0..lines.len() {
+            if lines[li].items.len() > 4 { continue; }
+            let (ax0, ax1) = lines[li].items.iter().fold((f32::MAX, f32::MIN), |(a, b), &i| (a.min(bs[i].x0), b.max(bs[i].x1)));
+            let ah = lines[li].y1 - lines[li].y0;
+            let target = (0..lines.len()).find(|&mi| {
+                if mi == li { return false; }
+                let m = &lines[mi];
+                let (mx0, mx1) = m.items.iter().fold((f32::MAX, f32::MIN), |(a, b), &i| (a.min(bs[i].x0), b.max(bs[i].x1)));
+                let gap = m.y0 - lines[li].y1;
+                gap < 0.3 * h && lines[li].y1 < (m.y0 + m.y1) / 2.0 && ah < 0.8 * (m.y1 - m.y0)
+                    && ax0 > mx0 && ax0 < mx1 + 1.5 * h && ax1 < mx1 + 4.0 * h
+            });
+            if let Some(mi) = target {
+                let l = lines.remove(li);
+                let mi = if mi > li { mi - 1 } else { mi };
+                let m = &mut lines[mi];
+                m.items.extend(l.items); m.y0 = m.y0.min(l.y0); m.y1 = m.y1.max(l.y1);
+                merged = true;
+                break;
+            }
+        }
+        if !merged { break; }
+    }
     // a fraction bar glues the line above and the line below together
     loop {
         let mut merged = false;
@@ -246,6 +272,8 @@ fn is_plus(l: &Layout, s: &Sym) -> bool {
 
 fn is_infinity(l: &Layout, s: &Sym) -> bool {
     let b = s.b;
+    // ∞ is one looping stroke; an x is two crossing strokes (and must never become ∞)
+    if s.strokes.len() != 1 { return false; }
     if b.w() < 1.25 * b.h() || b.w() > 4.5 * b.h() || b.h() < 0.15 * l.h { return false; }
     let pts: Vec<(f32, f32)> = s.strokes.iter().flat_map(|&i| l.strokes[i].p.iter().map(|q| (q.x, q.y))).collect();
     let gap = 4.max(pts.len() / 5);
@@ -267,7 +295,7 @@ fn refine(l: &Layout, pick: &str, s: &Sym) -> String {
     let b = s.b;
     let h = l.h;
     if is_plus(l, s) { return "+".into(); }
-    if is_infinity(l, s) && !(pick.len() == 1 && pick.chars().all(|c| c.is_ascii_digit())) { return "oo".into(); }
+    if is_infinity(l, s) && !(pick.len() == 1 && pick.chars().all(|c| c.is_ascii_digit())) && !["x", "X", "xx", "×"].contains(&pick) { return "oo".into(); }
     if s.strokes.len() == 1 && is_flat(&b, h) { return "-".into(); }
     let mut pick = pick.to_string();
     if pick == "_" { pick = "-".into(); }
@@ -402,7 +430,9 @@ impl<'a, 'b> Emitter<'a, 'b> {
                 let (bcy, bh) = (bb.cy(), bb.h());
                 let not_big = nb.h() < 1.3 * bh.max(ref_h * 0.8);
                 let is_sup = not_big && nb.cy() < bcy - 0.3 * bh && nb.y1 < bcy + 0.15 * bh;
-                let is_sub = not_big && nb.cy() > bcy + 0.3 * bh && nb.y0 > bcy - 0.12 * bh;
+                let is_sub = not_big && nb.cy() > bcy + 0.3 * bh && nb.y0 > bcy - 0.12 * bh && nb.y1 > bb.y1 + 0.12 * bh
+                    // y, g, p, q, j hang below the line by themselves: only a subscript if they also start low
+                    && !(self.ch(&n).map(|c| ["g", "j", "p", "q", "y"].contains(&c.as_str())).unwrap_or(false) && nb.y0 < bcy + 0.15 * bh);
                 if is_sup || is_sub {
                     let mut grp = vec![n.clone()];
                     let mut j = i + 1;
@@ -447,6 +477,19 @@ fn fix_digits(l: &mut Layout, nodes: &[Node]) {
     for n in nodes {
         match n { Node::Frac(a, b, _) => { fix_digits(l, a); fix_digits(l, b); } Node::Sqrt(a, _) => fix_digits(l, a), _ => {} }
     }
+}
+
+/// A lone "x" with space on both sides and a number after it is a times sign (… × 10^16).
+fn times_signs(l: &mut Layout, nodes: &[Node], h: f32) {
+    let row: Vec<(Rect, Option<usize>)> = nodes.iter().map(|n| (l.node_b(n), if let Node::Sym(i) = n { Some(*i) } else { None })).collect();
+    for k in 1..row.len().saturating_sub(1) {
+        let Some(si) = row[k].1 else { continue };
+        if !["x", "X"].contains(&l.syms[si].ch.as_str()) { continue; }
+        let next_num = row[k + 1].1.map(|j| l.syms[j].ch.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)).unwrap_or(false);
+        let b = row[k].0;
+        if next_num && b.x0 - row[k - 1].0.x1 > 0.35 * h && row[k + 1].0.x0 - b.x1 > 0.35 * h { l.syms[si].ch = "xx".into(); }
+    }
+    for n in nodes { match n { Node::Frac(a, b, _) => { times_signs(l, a, h); times_signs(l, b, h); } Node::Sqrt(a, _) => times_signs(l, a, h), _ => {} } }
 }
 
 fn rows_of(nodes: &[Node], acc: &mut Vec<Vec<usize>>) {
@@ -657,6 +700,7 @@ impl Job {
                 if let Some(tok) = dollarp::override_for(&group, &s.ch) { l.syms[si].ch = tok; }
             }
             fix_digits(&mut l, &m.tree);
+            times_signs(&mut l, &m.tree, m.h);
             let tree = m.tree.clone();
             let mut e = Emitter { l: &mut l, row_h: m.h };
             let mut ascii = e.row(&tree, false);
@@ -796,6 +840,29 @@ mod tests {
         ];
         let r = run(v, "math");
         assert_eq!(r[0].src, "5x + 2y^2 + int_(- oo)^(oo) J_s^2 dz");
+    }
+
+    #[test]
+    fn handwritten_x_is_not_infinity_and_stays_on_the_line() {
+        // 2x + 3x^2 + 4yzx: small two-stroke x's (wider than tall) sitting on the baseline next to tall digits
+        let x = |x0: f32| g("x", vec![s(&[(x0, 76.0), (x0 + 16.0, 90.0)]), s(&[(x0 + 16.0, 76.0), (x0, 90.0)])]);
+        let two = |x0: f32, y0: f32, sz: f32, l: &'static str| g(l, vec![s(&[(x0, y0 + 2.0), (x0 + sz * 0.6, y0), (x0 + sz * 0.5, y0 + sz * 0.5), (x0, y0 + sz), (x0 + sz * 0.7, y0 + sz)])]);
+        let v = vec![
+            two(0.0, 60.0, 30.0, "2"), x(26.0),
+            plus(52.0, 70.0, 16.0, "+"),
+            g("3", vec![s(&[(80.0, 60.0), (96.0, 62.0), (86.0, 74.0), (98.0, 80.0), (80.0, 90.0)])]), x(104.0), two(124.0, 58.0, 12.0, "2"),
+            plus(146.0, 70.0, 16.0, "+"),
+            g("4", vec![s(&[(180.0, 60.0), (172.0, 80.0), (190.0, 80.0)]), s(&[(186.0, 64.0), (186.0, 90.0)])]),
+            g("y", vec![s(&[(196.0, 76.0), (204.0, 90.0)]), s(&[(212.0, 76.0), (200.0, 104.0)])]),
+            g("z", vec![s(&[(218.0, 76.0), (232.0, 76.0), (218.0, 90.0), (232.0, 90.0)])]), x(238.0),
+            x(272.0), // × written like an x, with space around it
+            g("1", vec![s(&[(306.0, 60.0), (306.0, 90.0)])]),
+            g("0", vec![s(&[(316.0, 60.0), (330.0, 60.0), (330.0, 90.0), (316.0, 90.0), (316.0, 60.0)])]),
+            g("1", vec![s(&[(338.0, 46.0), (338.0, 60.0)])]),
+            g("6", vec![s(&[(352.0, 44.0), (344.0, 54.0), (348.0, 60.0), (354.0, 56.0), (346.0, 52.0)])]),
+        ];
+        let r = run(v, "math");
+        assert_eq!(r.iter().map(|c| c.src.clone()).collect::<Vec<_>>().join(" | ").replace(" ", ""), "2x+3x^2+4yzxxx10^(16)");
     }
 
     #[test]

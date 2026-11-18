@@ -40,6 +40,8 @@ class TrainPad(context: Context) : View(context) {
     }
 
     override fun onDraw(c: Canvas) {
+        // hosted in Compose without clipping: stay inside our own box
+        c.clipRect(0, 0, width, height)
         c.drawColor(PAPER)
         c.drawLine(0f, height * 0.7f, width.toFloat(), height * 0.7f, guide)
         c.drawLine(0f, height * 0.3f, width.toFloat(), height * 0.3f, guide)

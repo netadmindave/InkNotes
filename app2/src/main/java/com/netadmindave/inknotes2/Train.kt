@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -180,7 +181,7 @@ fun MainActivity.SymbolTraining() {
                 if (note.isNotEmpty()) Text(note, fontSize = 13.sp, color = Accent)
             }
         }
-        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(240.dp).border(1.dp, Color(0xFFD8D0BD)))
+        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(240.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { pad.clear() }) { Text("Clear") }
             TextButton(onClick = { pad.clear(); note = ""; cur = nextIn(group) }) { Text("Skip") }
@@ -248,7 +249,7 @@ fun MainActivity.Practice(math: Boolean) {
                 modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp))
             else Text(target, fontSize = 22.sp)
         }
-        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(if (math) 300.dp else 260.dp).padding(top = 8.dp).border(1.dp, Color(0xFFD8D0BD)))
+        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(if (math) 300.dp else 260.dp).padding(top = 8.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
         result?.let { (ok, read) ->
             Column(Modifier.fillMaxWidth().padding(top = 8.dp).background(if (ok) Color(0xFFDCFCE7) else Color(0xFFFEE2E2), RoundedCornerShape(8.dp)).padding(10.dp)) {
                 Text(if (ok) "✓ Read correctly" else "✗ Read differently", fontWeight = FontWeight.Bold)
