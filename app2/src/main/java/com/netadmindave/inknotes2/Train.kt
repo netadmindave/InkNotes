@@ -140,7 +140,10 @@ fun MainActivity.SymbolTraining() {
         (0 until a.length()).map { a.getJSONArray(it) }.associate { r -> r.getString(0) to TSym(r.getString(0), r.optString(2, r.getString(0)), r.getInt(1)) }
     } ?: emptyMap()
     var syms by remember { mutableStateOf(load()) }
-    var passes by remember { mutableStateOf(try { JSONObject(store.pref("trainPasses", "{}")).let { o -> o.keys().asSequence().associateWith { o.getInt(it) } } } catch (e: Exception) { emptyMap() }) }
+    var passes by remember {
+        val init: Map<String, Int> = try { JSONObject(store.pref("trainPasses", "{}")).let { o -> o.keys().asSequence().associateWith { k -> o.getInt(k) } } } catch (e: Exception) { emptyMap() }
+        mutableStateOf(init)
+    }
     var group by remember { mutableStateOf(0) }
     var cur by remember { mutableStateOf(SYM_GROUPS[0].second[0]) }
     var note by remember { mutableStateOf("") }
