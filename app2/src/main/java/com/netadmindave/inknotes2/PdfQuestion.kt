@@ -84,7 +84,7 @@ fun MainActivity.insertPdfPage(p: PdfPick, page: Int) {
         if (name == null) { toast("Couldn't render that page"); return@launch }
         val (pg, _, y) = ink.visibleSpot()
         val w = ink.pageSize(pg).first - MARGIN_L - MARGIN_R
-        val item = jo("id" to newItemId(), "type" to "image", "x" to MARGIN_L.toDouble(), "y" to y.toDouble(), "w" to w.toDouble(), "file" to name)
+        val item = jo("id" to newItemId(), "type" to "image", "x" to MARGIN_L.toDouble(), "y" to y.toDouble(), "w" to w.toDouble(), "file" to name, "align" to "left")
         Core.call(h, "upsertItem", jo("page" to pg, "item" to item))
         ink.sync(); changed()
         cropping = ItemEdit(pg, item)
@@ -155,11 +155,18 @@ fun MainActivity.CropDialog(e: ItemEdit) {
     // width the whole picture would have at the current scale; cropping keeps that scale
     var fullW by remember(e) { mutableStateOf(e.item.optDouble("w", 360.0).toFloat() / (c0[2] - c0[0])) }
     var grab by remember { mutableStateOf(0) }
+    var align by remember(e) { mutableStateOf(e.item.optString("align", "")) }
     fun save() {
         val it = JSONObject(e.item.toString())
         it.put("crop", JSONArray(crop.map { v -> v.toDouble() }))
         val w = (fullW * (crop[2] - crop[0])).coerceIn(40f, pageW)
         it.put("w", w.toDouble()); it.remove("h")
+        it.put("align", align)
+        when (align) {
+            "left" -> it.put("x", MARGIN_L.toDouble())
+            "center" -> it.put("x", ((pageW - w) / 2f).coerceAtLeast(0f).toDouble())
+            "right" -> it.put("x", (pageW - MARGIN_R - w).coerceAtLeast(0f).toDouble())
+        }
         if (it.optDouble("x") + w > pageW) it.put("x", (pageW - w).coerceAtLeast(0f).toDouble())
         Core.call(h, "upsertItem", jo("page" to e.page, "item" to it))
         ink.sync(); changed(); cropping = null
@@ -224,6 +231,11 @@ fun MainActivity.CropDialog(e: ItemEdit) {
                     Text("Size", fontSize = 14.sp)
                     Slider(fullW, { fullW = it }, Modifier.weight(1f).padding(horizontal = 10.dp), valueRange = 200f..(pageW * 2.5f))
                     Text("${(fullW * (crop[2] - crop[0])).toInt()} px wide", fontSize = 13.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Place", fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp))
+                    for ((k, l) in listOf("left" to "Left", "center" to "Center", "right" to "Right", "" to "Where it is"))
+                        FilterChip(align == k, { align = k }, { Text(l) }, Modifier.padding(end = 4.dp))
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { crop = listOf(0f, 0f, 1f, 1f) }) { Text("Reset") }

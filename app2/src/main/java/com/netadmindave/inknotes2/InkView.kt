@@ -159,7 +159,7 @@ class InkView(context: Context, val render: Renderer) : View(context) {
 
     /* ---------------- input ---------------- */
 
-    private enum class Mode { NONE, DRAW, PAN, DRAG_SEL, PALM }
+    private enum class Mode { NONE, DRAW, PAN, DRAG_SEL, PALM, DRAG_ITEM }
     private var mode = Mode.NONE
     private var drawId = -1
     private var drawIsPen = false
@@ -324,11 +324,17 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                 val n = fingerCount(ev)
                 if (n >= 2) {
                     if (mode == Mode.DRAW) Core.call(h, "cancel")
+                    if (mode == Mode.DRAG_ITEM) { dragId = null; dragDy = 0f; invalidate() }
                     if (mode != Mode.PAN) beginPan(ev) else startPan(ev)
                     mode = Mode.PAN
                 } else if (n == 1) {
                     vt?.clear(); vt?.addMovement(ev)
-                    if (fingerDraws || (toolKind() == "text")) startDraw(ev, ai, false)
+                    val pic = if (fingerDraws) null else pictureAt(ev.getX(ai), ev.getY(ai))
+                    if (pic != null) {
+                        mode = Mode.DRAG_ITEM; dragPage = pic.first; dragId = pic.second; dragDy = 0f
+                        drawId = ev.getPointerId(ai); downX = ev.getX(ai); downY = ev.getY(ai); downT = ev.eventTime
+                    }
+                    else if (fingerDraws || (toolKind() == "text")) startDraw(ev, ai, false)
                     else if (!lock) { beginPan(ev); mode = Mode.PAN }
                     else { mode = Mode.NONE; downX = ev.getX(ai); downY = ev.getY(ai); downT = ev.eventTime }
                     // a deliberate one-finger touch with lock on still selects items by tapping
@@ -340,6 +346,18 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                     Mode.PAN -> {
                         if ((0 until ev.pointerCount).any { !isPen(ev, it) && isPalm(ev, it) }) { restorePan(); mode = Mode.PALM }
                         else { vt?.addMovement(ev); pan(ev) }
+                    }
+                    Mode.DRAG_ITEM -> {
+                        val idx = ev.findPointerIndex(drawId)
+                        if (idx >= 0) {
+                            val box = itemBox(dragPage, dragId ?: "")
+                            if (box != null) {
+                                val raw = (ev.getY(idx) - downY) / scale
+                                dragDy = raw.coerceIn(-box.rect.top, pages[dragPage].hgt - box.rect.bottom)
+                                autoScroll(ev.getY(idx))
+                                invalidate()
+                            }
+                        }
                     }
                     Mode.DRAG_SEL -> {
                         val idx = ev.findPointerIndex(drawId)
@@ -356,6 +374,13 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                 else if (mode == Mode.PAN) startPan(ev, ai)
             }
             MotionEvent.ACTION_UP -> {
+                if (mode == Mode.DRAG_ITEM) {
+                    val id = dragId
+                    if (id != null && abs(dragDy) > 2f) moveItemBy(dragPage, id, dragDy)
+                    else if (id != null && hypot(ev.x - downX, ev.y - downY) < 12 && ev.eventTime - downT < 350) onItemTap(dragPage, id)
+                    dragId = null; dragDy = 0f; mode = Mode.NONE; vt?.recycle(); vt = null; invalidate()
+                    return true
+                }
                 when (mode) {
                     Mode.DRAW -> finishDraw(ev)
                     Mode.DRAG_SEL -> endDrag()
@@ -389,6 +414,7 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                 onPageChanged(currentPage())
             }
             MotionEvent.ACTION_CANCEL -> {
+                dragId = null; dragDy = 0f
                 if (mode == Mode.DRAW) Core.call(h, "cancel")
                 if (mode == Mode.PAN) restorePan()
                 mode = Mode.NONE; ui.removeCallbacks(holdCheck); invalidate()
@@ -418,6 +444,35 @@ class InkView(context: Context, val render: Renderer) : View(context) {
         return Triple(cx, cy, if (n > 1) span / n else 0f)
     }
     private fun startPan(ev: MotionEvent, skip: Int = -1) { val (x, y, s) = focus(ev, skip); lastPan.set(x, y); lastSpan = s }
+    /* ---- moving pictures (and cropped PDF questions) up and down ---- */
+    private var dragId: String? = null
+    private var dragPage = 0
+    private var dragDy = 0f
+
+    private fun pictureAt(sx: Float, sy: Float): Pair<Int, String>? {
+        val (pg, px, py) = hit(sx, sy, true) ?: return null
+        val b = pages[pg].items.lastOrNull { it.kind == "image" && it.rect.contains(px, py) } ?: return null
+        return pg to b.id
+    }
+    /** Keep the picture under the finger when dragging near the top or bottom edge. */
+    private fun autoScroll(y: Float) {
+        val edge = 60f * resources.displayMetrics.density
+        val d = when { y < edge -> 14f; y > height - edge -> -14f; else -> 0f }
+        if (d != 0f) { val before = offY; offY += d; clamp(); downY += offY - before }
+    }
+    private fun moveItemBy(pg: Int, id: String, dy: Float) {
+        val pj = Core.call(h, "page", jo("page" to pg)) as? JSONObject ?: return
+        val arr = pj.optJSONArray("items") ?: return
+        for (k in 0 until arr.length()) {
+            val it = arr.getJSONObject(k)
+            if (it.optString("id") != id) continue
+            it.put("y", (it.optDouble("y") + dy).coerceAtLeast(0.0))
+            Core.call(h, "upsertItem", jo("page" to pg, "item" to it))
+            sync(); onChanged()
+            return
+        }
+    }
+
     /** A contact the size of a palm or wrist rather than a fingertip. */
     private fun isPalm(ev: MotionEvent, i: Int) = ev.getTouchMajor(i) > bigPx || ev.getToolType(i) == MotionEvent.TOOL_TYPE_PALM
 
@@ -544,7 +599,12 @@ class InkView(context: Context, val render: Renderer) : View(context) {
             val px = if (export) 2600 else (p.w * scale).toInt()
             render.drawPdf(c, render.ctx.let { File(File(it.filesDir, "media"), bg.optString("pdf")) }, bg.optInt("page"), p.w, p.hgt, px, export)
         } else render.drawPaper(c, p.w, p.hgt, if (export && p.paper == "lined") "lined" else p.paper, whitePaper || export && p.paper == "plain")
-        for (b in p.items) b.draw(c)
+        for (b in p.items) {
+            if (!export && b.id == dragId && i == dragPage) {
+                c.save(); c.translate(0f, dragDy); b.draw(c)
+                c.drawRect(b.rect, selPaint); c.restore()
+            } else b.draw(c)
+        }
         val fade = playRec >= 0
         for (op in p.ops) {
             if (fade && op.rec == playRec && op.ms > playMs) {
