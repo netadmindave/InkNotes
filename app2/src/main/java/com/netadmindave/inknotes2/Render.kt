@@ -213,15 +213,15 @@ class Renderer(val ctx: Context) {
         return if (flags == 0) base else Typeface.create(base, flags)
     }
 
-    fun layoutText(src: String, maxW: Float, color: Int = INK, misspelt: Set<String> = emptySet(), style: JSONObject? = null): Laid {
-        val scaleF = (style?.optDouble("size", 1.0) ?: 1.0).toFloat().coerceIn(0.4f, 4f)
-        val styleColor = style?.optString("color", "")?.takeIf { it.isNotEmpty() }?.let { try { Color.parseColor(it) } catch (e: Exception) { null } }
-        val align = style?.optString("align", "") ?: ""
+    fun layoutText(src: String, maxW: Float, color: Int = INK, misspelt: Set<String> = emptySet(), tstyle: JSONObject? = null): Laid {
+        val scaleF = (tstyle?.optDouble("size", 1.0) ?: 1.0).toFloat().coerceIn(0.4f, 4f)
+        val styleColor = tstyle?.optString("color", "")?.takeIf { it.isNotEmpty() }?.let { try { Color.parseColor(it) } catch (e: Exception) { null } }
+        val align = tstyle?.optString("align", "") ?: ""
         val tp = textPaint.apply {
             this.color = styleColor ?: color
             textSize *= scaleF
-            typeface = styledTypeface(style)
-            isUnderlineText = style?.optBoolean("underline") == true
+            typeface = styledTypeface(tstyle)
+            isUnderlineText = tstyle?.optBoolean("underline") == true
         }
         val fm = tp.fontMetrics
         val lineH = LINE.coerceAtLeast(fm.descent - fm.ascent)

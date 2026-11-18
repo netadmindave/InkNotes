@@ -816,7 +816,7 @@ class MainActivity : ComponentActivity() {
         if (math) TexImage(src, 28f, Modifier.fillMaxWidth().padding(vertical = 8.dp).background(Paper))
         else {
             val bm = remember(src, style.toString()) {
-                val l = render.layoutText(src, 900f, style = style)
+                val l = render.layoutText(src, 900f, tstyle = style)
                 val b = android.graphics.Bitmap.createBitmap(maxOf(1, l.w.toInt() + 8), maxOf(1, l.h.toInt() + 8), android.graphics.Bitmap.Config.ARGB_8888)
                 l.draw(android.graphics.Canvas(b)); b.asImageBitmap()
             }
