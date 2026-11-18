@@ -17,7 +17,8 @@ import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class Piece(val kind: String, val src: String, val alts: List<String>, val strokes: List<Int>)
+data class Sym(val strokes: List<Int>, val ch: String, val x0: Float)
+data class Piece(val kind: String, val src: String, val alts: List<String>, val strokes: List<Int>, val syms: List<Sym> = emptyList())
 
 /** Google ML Kit reads characters; the Rust engine does layout (lines, fractions, scripts, limits) around it. */
 object Recognizer {
@@ -97,7 +98,10 @@ object Recognizer {
             val o = res.getJSONObject(i)
             val alts = o.optJSONArray("alts") ?: JSONArray()
             val ids = o.optJSONArray("strokes") ?: JSONArray()
-            Piece(o.getString("type"), o.getString("src"), (0 until alts.length()).map { alts.getString(it) }, (0 until ids.length()).map { ids.getInt(it) })
+            val sy = o.optJSONArray("syms") ?: JSONArray()
+            val syms = (0 until sy.length()).map { k -> val q = sy.getJSONObject(k); val st = q.getJSONArray("strokes")
+                Sym((0 until st.length()).map { st.getInt(it) }, q.optString("ch"), q.getJSONArray("b").getDouble(0).toFloat()) }
+            Piece(o.getString("type"), o.getString("src"), (0 until alts.length()).map { alts.getString(it) }, (0 until ids.length()).map { ids.getInt(it) }, syms)
         }
     }
 }

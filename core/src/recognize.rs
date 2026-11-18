@@ -492,7 +492,13 @@ pub struct Converted {
     pub alts: Vec<String>,
     /// indices (into the job's strokes) this piece came from, for re-reading as text/math
     pub strokes: Vec<usize>,
+    /// formulas: each symbol as read — its strokes (job indices), token and box — for training
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub syms: Vec<SymOut>,
 }
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct SymOut { pub strokes: Vec<usize>, pub ch: String, pub b: [f32; 4] }
 
 struct MathLine { line: usize, h: f32, syms: Vec<Sym>, tree: Vec<Node>, rows: Vec<Vec<usize>>, leftovers: Vec<usize> }
 
@@ -638,6 +644,7 @@ impl Job {
 
     fn finish_math(&mut self) {
         let mut srcs: Vec<(usize, String)> = vec![];
+        let mut symsets: std::collections::HashMap<usize, Vec<SymOut>> = Default::default();
         for m in self.math.iter_mut() {
             let ss: Vec<Stroke> = self.lines[m.line].iter().map(|&i| self.strokes[i].clone()).collect();
             let mut l = Layout { strokes: &ss, bs: ss.iter().map(|s| s.bounds()).collect(), h: m.h, syms: std::mem::take(&mut m.syms) };
@@ -655,10 +662,13 @@ impl Job {
             let mut ascii = e.row(&tree, false);
             for (a, b) in [("s i n", "sin"), ("c o s", "cos"), ("l n", "ln"), ("t a n", "tan"), ("l o g", "log")] { ascii = ascii.replace(a, b); }
             srcs.push((m.line, ascii));
+            let mut so: Vec<SymOut> = l.syms.iter().map(|sy| SymOut { strokes: sy.strokes.iter().map(|&k| self.lines[m.line][k]).collect(), ch: sy.ch.clone(), b: [sy.b.x0, sy.b.y0, sy.b.x1, sy.b.y1] }).collect();
+            so.sort_by(|a, b| a.b[0].partial_cmp(&b.b[0]).unwrap());
+            symsets.insert(m.line, so);
             m.syms = l.syms;
         }
         if self.mode == "math" {
-            self.result = srcs.into_iter().map(|(li, s)| Converted { kind: "math".into(), src: s, alts: vec![], strokes: self.lines[li].clone() }).collect();
+            self.result = srcs.into_iter().map(|(li, s)| Converted { kind: "math".into(), src: s, alts: vec![], strokes: self.lines[li].clone(), syms: symsets.remove(&li).unwrap_or_default() }).collect();
             self.stage = Stage::Done;
             return;
         }
@@ -672,14 +682,14 @@ impl Job {
         let mut out: Vec<Converted> = vec![];
         for li in 0..self.lines.len() {
             if let Some(src) = math.get(&li) {
-                out.push(Converted { kind: "math".into(), src: src.clone(), alts: self.texts.get(li).and_then(|t| t.first()).cloned().into_iter().collect(), strokes: self.lines[li].clone() });
+                out.push(Converted { kind: "math".into(), src: src.clone(), alts: self.texts.get(li).and_then(|t| t.first()).cloned().into_iter().collect(), strokes: self.lines[li].clone(), syms: vec![] });
                 continue;
             }
             let alts = self.texts.get(li).cloned().unwrap_or_default();
             let t = alts.first().cloned().unwrap_or_default();
             match out.last_mut() {
                 Some(last) if last.kind == "text" => { last.src.push('\n'); last.src.push_str(&t); last.alts.clear(); last.strokes.extend(&self.lines[li]); }
-                _ => out.push(Converted { kind: "text".into(), src: t, alts: alts.into_iter().take(4).collect(), strokes: self.lines[li].clone() }),
+                _ => out.push(Converted { kind: "text".into(), src: t, alts: alts.into_iter().take(4).collect(), strokes: self.lines[li].clone(), syms: vec![] }),
             }
         }
         self.result = out;

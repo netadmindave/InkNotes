@@ -270,7 +270,7 @@ class MainActivity : ComponentActivity() {
                     val mine = JSONArray()
                     for (k in pc.strokes) used.getOrNull(k)?.let { st -> mine.put(st); st.optJSONArray("p")?.let { p -> for (j in 0 until p.length()) { val q = p.getJSONArray(j); val x = q.getDouble(0).toFloat(); val y = q.getDouble(1).toFloat(); x0 = minOf(x0, x); y0 = minOf(y0, y); x1 = maxOf(x1, x); y1 = maxOf(y1, y) } } }
                     if (x0 == Float.MAX_VALUE) continue
-                    val src = if (pc.kind == "text") ((Core.util("clean", jo("text" to pc.src, "words" to JSONArray(words), "autoMath" to autoMath)) as? JSONObject)?.optString("text") ?: pc.src) else pc.src
+                    val src = if (pc.kind == "text") ((Core.util("clean", jo("text" to applyCorrections(pc.src), "words" to JSONArray(words), "autoMath" to autoMath)) as? JSONObject)?.optString("text") ?: pc.src) else pc.src
                     val bm = withContext(Dispatchers.Default) { inkBitmap(mine) }
                     rows.add(ReviewRow(bm, x0, y0, y1, pc.kind, if (pc.kind == "text") src else "", if (pc.kind == "math") srcToLatex(src) else "", pc.alts.filter { it.isNotBlank() && it != src }.take(4)))
                 }
@@ -790,49 +790,6 @@ class MainActivity : ComponentActivity() {
             "θ" to "theta", "α" to "alpha", "β" to "beta", "λ" to "lambda", "μ" to "mu", "Δ" to "Delta", "∂" to "del", "±" to "+-", "×" to "xx", "÷" to "-:",
             "≤" to "<=", "≥" to ">=", "≠" to "!=", "≈" to "~~", "→" to "->", "°" to "deg")
         FlowRow { for ((l, v) in keys) OutlinedButton(onClick = { onKey(v) }, Modifier.padding(2.dp), contentPadding = PaddingValues(horizontal = 8.dp)) { Text(l) } }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    fun Trainer() {
-        val counts = remember { mutableStateOf((Core.utilRaw("trainCount", "null") as? JSONArray)?.let { a -> List(a.length()) { a.getJSONArray(it).let { p -> p.getString(0) to p.getInt(1) } } } ?: emptyList()) }
-        var idx by remember { mutableStateOf(counts.value.indexOfFirst { it.second < 3 }.coerceAtLeast(0)) }
-        val pad = remember { TrainPad(this) }
-        Dialog(onDismissRequest = { training = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(Modifier.widthIn(max = 640.dp).fillMaxWidth(0.94f), shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Teach InkNotes your handwriting", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Write the symbol below the way you normally do. Three samples each is plenty; formulas use them to fix misreadings.", fontSize = 13.sp, color = Color(0xFF6B6B6B))
-                    val cur = counts.value.getOrNull(idx)
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
-                        Text(cur?.first ?: "", fontSize = 56.sp, modifier = Modifier.width(110.dp))
-                        Text("${cur?.second ?: 0} sample(s) saved", fontSize = 14.sp)
-                    }
-                    AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(260.dp).border(1.dp, Color(0xFFD8D0BD)))
-                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { pad.clear() }) { Text("Clear") }
-                        TextButton(onClick = { pad.clear(); idx = (idx + 1) % counts.value.size }) { Text("Skip") }
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { training = false }) { Text("Close") }
-                        Button(onClick = { if (!pad.empty && cur != null) {
-                            Core.util("trainAdd", jo("sym" to cur.first, "strokes" to pad.json()))
-                            (Core.utilRaw("trainSave", "null") as? JSONObject)?.let { store.set("hwSamples", it.toString()) }
-                            counts.value = counts.value.map { if (it.first == cur.first) it.first to it.second + 1 else it }
-                            pad.clear()
-                            val next = counts.value.indexOfFirst { it.second < 3 }
-                            if (next >= 0) idx = next else toast("All symbols have 3 samples — keep adding any that get misread")
-                        } }) { Text("Save sample") }
-                    }
-                    FlowRow(Modifier.padding(top = 8.dp)) {
-                        counts.value.forEachIndexed { i, (s, n) ->
-                            Box(Modifier.padding(2.dp).clip(RoundedCornerShape(6.dp)).background(if (i == idx) Color(0xFFDCCFEA) else if (n >= 3) Color(0xFFDCFCE7) else Color(0xFFF3F4F6))
-                                .clickable { pad.clear(); idx = i }.padding(horizontal = 8.dp, vertical = 4.dp)) { Text(s, fontSize = 16.sp) }
-                        }
-                    }
-                    TextButton(onClick = { Core.util("trainClear", jo("sym" to "")); store.set("hwSamples", "{}"); counts.value = counts.value.map { it.first to 0 } }) { Text("Forget all samples", color = Color(0xFFB91C1C)) }
-                }
-            }
-        }
     }
 
     @OptIn(ExperimentalLayoutApi::class)

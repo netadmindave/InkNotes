@@ -265,7 +265,7 @@ pub fn util(op: &str, raw: &str) -> Value {
         "trainLoad" => { dollarp::load(raw); Value::Bool(true) }
         "trainSave" => serde_json::from_str(&dollarp::save()).unwrap_or(Value::Null),
         "trainAdd" => { let ss = strokes("strokes"); json!(dollarp::add_sample(&st("sym"), &ss.iter().collect::<Vec<_>>())) }
-        "trainCount" => json!(dollarp::SYMBOLS.iter().map(|(s, _)| (s.to_string(), dollarp::count(s))).collect::<Vec<_>>()),
+        "trainCount" => json!(dollarp::SYMBOLS.iter().map(|(s, t)| (s.to_string(), dollarp::count(s), t.to_string())).collect::<Vec<_>>()),
         "trainClear" => { let k = st("sym"); dollarp::clear(if k.is_empty() { None } else { Some(&k) }); Value::Bool(true) }
         "classify" => { let ss = strokes("strokes"); json!(dollarp::classify(&ss.iter().collect::<Vec<_>>()).into_iter().take(5).collect::<Vec<_>>()) }
         "geom" => { let mut v = vec![]; pack(&strokes("strokes"), &mut v); json!(v) }
