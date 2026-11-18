@@ -113,7 +113,7 @@ private val Muted = Color(0xFF6B6B6B)
 
 @Composable
 fun MainActivity.Trainer() {
-    var tab by remember { mutableStateOf(0) }
+    var tab by remember { mutableStateOf(trainTab) }
     Dialog(onDismissRequest = { training = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxWidth(0.96f).fillMaxHeight(0.95f), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(16.dp)) {

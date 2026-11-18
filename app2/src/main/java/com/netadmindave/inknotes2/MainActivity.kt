@@ -119,6 +119,8 @@ class MainActivity : ComponentActivity() {
     var cropping by mutableStateOf<ItemEdit?>(null)
     var pdfAsPicture by mutableStateOf(false)
     var review by mutableStateOf<List<ReviewRow>?>(null)
+    var trainTab = 0
+    var reviewEditFirst = false
 
     fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
@@ -141,7 +143,26 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleIntent(intent) }
+    /** Opens a screen directly (used by the automated screenshot check in CI). */
+    private fun demo(d: String) {
+        when (d) {
+            "train0", "train1", "train2" -> { trainTab = d.last() - '0'; training = true }
+            "review", "review-edit" -> {
+                val st = JSONArray()
+                fun line(vararg p: Pair<Float, Float>) = JSONObject().put("c", "#1d3557").put("s", 2.5).put("p", JSONArray(p.map { (x, y) -> JSONArray(listOf(x.toDouble(), y.toDouble(), 0.5)) }))
+                st.put(line(0f to 10f, 14f to 0f, 20f to 12f, 0f to 34f, 22f to 34f)); st.put(line(30f to 14f, 46f to 34f)); st.put(line(46f to 14f, 30f to 34f))
+                reviewEditFirst = d == "review-edit"
+                review = listOf(ReviewRow(inkBitmap(st), 0f, 0f, 34f, "math", "", "2x+3y", listOf("2x+3y")),
+                    ReviewRow(inkBitmap(st), 0f, 40f, 74f, "text", "Some converted text", "", listOf("Some convented text")))
+            }
+            "formula" -> { val (p, x, y) = ink.visibleSpot(); editing = ItemEdit(p, jo("id" to newItemId(), "type" to "math", "x" to x.toDouble(), "y" to y.toDouble(), "w" to 0, "src" to "\\[\\frac{a}{b}+x^2\\]")) }
+            "settings" -> settings = true
+            "pdfpick" -> {}
+        }
+    }
+
     private fun handleIntent(i: Intent?) {
+        i?.getStringExtra("demo")?.let { demo(it) }
         if (i?.action == Intent.ACTION_VIEW && i.data != null && (i.type == "application/pdf" || i.data.toString().endsWith(".pdf"))) { if (pdfAsPicture) pdfForPicture(i.data!!) else importPdf(i.data!!, true) }
     }
 

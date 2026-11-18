@@ -35,7 +35,7 @@ class ReviewRow(val ink: Bitmap?, val x0: Float, val y0: Float, val y1: Float, k
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MainActivity.ReviewDialog(rows: List<ReviewRow>) {
-    var mathRow by remember(rows) { mutableStateOf<ReviewRow?>(null) }
+    var mathRow by remember(rows) { mutableStateOf<ReviewRow?>(if (reviewEditFirst) rows.firstOrNull { it.kind == "math" } else null) }
     Dialog(onDismissRequest = { review = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxWidth(0.96f).fillMaxHeight(0.94f), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(14.dp)) {
