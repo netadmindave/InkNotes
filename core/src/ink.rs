@@ -117,12 +117,37 @@ fn rdp(p: &[P], eps: f32) -> Vec<P> {
     l
 }
 
+/// Straight lines are made horizontal or vertical (orthogonal) unless clearly drawn on a slant;
+/// slanted lines still lock to 45° when close.
+const ORTHO_TOL: f32 = 30.0;
 fn snap_angle(a: P, b: P) -> P {
     let ang = (b[1] - a[1]).atan2(b[0] - a[0]);
     let l = dist(a, b);
+    let right = std::f32::consts::FRAC_PI_2;
+    let k = (ang / right).round();
+    if (ang - k * right).abs() < ORTHO_TOL.to_radians() { return [a[0] + l * (k * right).cos(), a[1] + l * (k * right).sin()]; }
     let step = std::f32::consts::FRAC_PI_4;
     let k = (ang / step).round();
     if (ang - k * step).abs() < 6f32.to_radians() { [a[0] + l * (k * step).cos(), a[1] + l * (k * step).sin()] } else { b }
+}
+
+/// Make near-horizontal / near-vertical edges exactly so (rectangles come out square to the page,
+/// triangles get a level base). Vertices shared by two edges satisfy both.
+fn orthogonalize(v: &mut [P], closed: bool) {
+    let n = v.len();
+    let edges = if closed { n } else { n.saturating_sub(1) };
+    let tol = ORTHO_TOL.to_radians();
+    for _ in 0..3 {
+        for i in 0..edges {
+            let j = (i + 1) % n;
+            let (a, b) = (v[i], v[j]);
+            let ang = (b[1] - a[1]).atan2(b[0] - a[0]);
+            let h = (ang.sin()).abs() < tol.sin();
+            let vt = (ang.cos()).abs() < tol.sin();
+            if h { let y = (a[1] + b[1]) / 2.0; v[i][1] = y; v[j][1] = y; }
+            else if vt { let x = (a[0] + b[0]) / 2.0; v[i][0] = x; v[j][0] = x; }
+        }
+    }
 }
 
 fn densify(v: &[P], closed: bool) -> Vec<Pt> {
@@ -215,6 +240,7 @@ pub fn snap_shape(raw: &[Pt], forced: bool) -> Option<Snapped> {
         let poly_ok = v.len() >= 3 && v.len() <= 6 && poly_err < if forced { 0.045 } else { 0.03 };
         let ell_ok = er < (if forced { 0.11 } else { 0.075 }) && v.len() >= 4;
         if poly_ok && (!ell_ok || (v.len() <= 4 && poly_err < er * 0.35)) {
+            orthogonalize(&mut v, true);
             if v.len() == 4 {
                 let right = (0..4).all(|i| {
                     let (q, p0, p2) = (v[i], v[(i + 3) % 4], v[(i + 1) % 4]);
@@ -235,7 +261,7 @@ pub fn snap_shape(raw: &[Pt], forced: bool) -> Option<Snapped> {
         }
         if ell_ok {
             if ea.min(eb) / ea.max(eb) > 0.88 { let m = (ea + eb) / 2.0; ea = m; eb = m; th = 0.0; }
-            if (2.0 * th).sin().abs() < 8f32.to_radians().sin() { th = (th / std::f32::consts::FRAC_PI_2).round() * std::f32::consts::FRAC_PI_2; }
+            if (2.0 * th).sin().abs() < ORTHO_TOL.to_radians().sin() { th = (th / std::f32::consts::FRAC_PI_2).round() * std::f32::consts::FRAC_PI_2; }
             let (s2, c2) = th.sin_cos();
             let steps = 36usize.max((std::f32::consts::PI * (ea + eb) / 3.0).ceil() as usize);
             let out = (0..=steps).map(|i| {
@@ -251,7 +277,7 @@ pub fn snap_shape(raw: &[Pt], forced: bool) -> Option<Snapped> {
         let v = rdp(&p, 0.06 * diag);
         if v.len() >= 2 && v.len() <= 4 {
             let err = p.iter().map(|&q| (0..v.len() - 1).map(|i| seg_dist(q, v[i], v[i + 1])).fold(f32::MAX, f32::min)).sum::<f32>() / p.len() as f32;
-            if err / diag < 0.035 { return Some(Snapped { p: densify(&v, false), g: 1 }); }
+            if err / diag < 0.035 { let mut v = v; orthogonalize(&mut v, false); return Some(Snapped { p: densify(&v, false), g: 1 }); }
         }
     }
     None
@@ -404,6 +430,26 @@ mod tests {
         o.push(if closed { [v[0][0] + 5.0, v[0][1] + 3.0] } else { *v.last().unwrap() });
         o
     }
+    #[test]
+    fn lines_and_shapes_come_out_orthogonal() {
+        let l = snap_shape(&jitter(poly(&[[0.0, 0.0], [180.0, 50.0]], false), 1.0), false).unwrap();
+        assert!((l.p.last().unwrap().y - l.p[0].y).abs() < 0.5, "15° line goes level");
+        let v = snap_shape(&jitter(poly(&[[0.0, 0.0], [40.0, 170.0]], false), 1.0), false).unwrap();
+        assert!((v.p.last().unwrap().x - v.p[0].x).abs() < 0.5, "steep line goes vertical");
+        let d = snap_shape(&jitter(poly(&[[0.0, 0.0], [150.0, 140.0]], false), 1.0), false).unwrap();
+        let (a, b) = (d.p[0], *d.p.last().unwrap());
+        assert!(((b.y - a.y) - (b.x - a.x)).abs() < 1.0, "diagonal locks to 45°");
+        // a skewed rectangle (~10° tilt) becomes square to the page
+        let r = snap_shape(&jitter(poly(&[[0.0, 0.0], [160.0, 28.0], [144.0, 118.0], [-16.0, 90.0]], true), 2.0), false).unwrap();
+        let xs: Vec<f32> = r.p.iter().map(|q| q.x).collect();
+        let ys: Vec<f32> = r.p.iter().map(|q| q.y).collect();
+        let near = |vals: &[f32], t: f32| vals.iter().filter(|&&x| (x - t).abs() < 0.5).count();
+        let (x0, x1) = (xs.iter().cloned().fold(f32::MAX, f32::min), xs.iter().cloned().fold(f32::MIN, f32::max));
+        let (y0, y1) = (ys.iter().cloned().fold(f32::MAX, f32::min), ys.iter().cloned().fold(f32::MIN, f32::max));
+        assert!(r.p.iter().all(|q| (q.x - x0).abs() < 0.5 || (q.x - x1).abs() < 0.5 || (q.y - y0).abs() < 0.5 || (q.y - y1).abs() < 0.5), "every point on the axis-aligned box");
+        assert!(near(&xs, x0) > 2 && near(&ys, y1) > 2);
+    }
+
     #[test]
     fn shapes_snap_and_writing_does_not() {
         let l = snap_shape(&jitter(poly(&[[0.0, 0.0], [180.0, 9.0]], false), 2.0), false).unwrap();
