@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
     var pdfChooser by mutableStateOf(false)
     var cropping by mutableStateOf<ItemEdit?>(null)
     var pdfAsPicture by mutableStateOf(false)
+    var review by mutableStateOf<List<ReviewRow>?>(null)
 
     fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
@@ -256,31 +257,46 @@ class MainActivity : ComponentActivity() {
         if (Recognizer.state != "ready") { askModel = true; return }
         val strokes = Core.call(h, "selStrokes") as? JSONArray ?: return
         if (strokes.length() == 0) { toast("Lasso some handwriting first"); return }
-        val pg = (Core.call(h, "meta") as? JSONObject)?.optJSONObject("sel")?.optInt("page") ?: return
         busy = "Reading your writing…"
         lifecycleScope.launch {
             try {
                 val pieces = Recognizer.convert(strokes, mode)
-                // bounds per piece from the same strokes the engine saw (highlighter ignored)
+                // the same strokes the engine saw (highlighter ignored), for bounds and the "before" picture
                 val used = (0 until strokes.length()).map { strokes.getJSONObject(it) }.filter { it.optString("k") != "hl" && (it.optJSONArray("p")?.length() ?: 0) > 0 }
-                val items = JSONArray()
                 val words = store.userWords.toList()
+                val rows = ArrayList<ReviewRow>()
                 for (pc in pieces) {
                     var x0 = Float.MAX_VALUE; var y0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var y1 = -Float.MAX_VALUE
-                    for (k in pc.strokes) used.getOrNull(k)?.optJSONArray("p")?.let { p -> for (j in 0 until p.length()) { val q = p.getJSONArray(j); val x = q.getDouble(0).toFloat(); val y = q.getDouble(1).toFloat(); x0 = minOf(x0, x); y0 = minOf(y0, y); x1 = maxOf(x1, x); y1 = maxOf(y1, y) } }
+                    val mine = JSONArray()
+                    for (k in pc.strokes) used.getOrNull(k)?.let { st -> mine.put(st); st.optJSONArray("p")?.let { p -> for (j in 0 until p.length()) { val q = p.getJSONArray(j); val x = q.getDouble(0).toFloat(); val y = q.getDouble(1).toFloat(); x0 = minOf(x0, x); y0 = minOf(y0, y); x1 = maxOf(x1, x); y1 = maxOf(y1, y) } } }
                     if (x0 == Float.MAX_VALUE) continue
                     val src = if (pc.kind == "text") ((Core.util("clean", jo("text" to pc.src, "words" to JSONArray(words), "autoMath" to autoMath)) as? JSONObject)?.optString("text") ?: pc.src) else pc.src
-                    if (src.isBlank()) continue
-                    val top = if (pc.kind == "text") Math.floor((y0 + minOf(y1 - y0, LINE) * 0.5) / LINE) * LINE else y0.toDouble()
-                    items.put(jo("id" to newItemId(), "type" to pc.kind, "x" to x0.toDouble(), "y" to top, "w" to 0, "src" to src))
+                    val bm = withContext(Dispatchers.Default) { inkBitmap(mine) }
+                    rows.add(ReviewRow(bm, x0, y0, y1, pc.kind, if (pc.kind == "text") src else "", if (pc.kind == "math") srcToLatex(src) else "", pc.alts.filter { it.isNotBlank() && it != src }.take(4)))
                 }
-                if (items.length() == 0) toast("Couldn't read that — try writing a little larger")
-                else { Core.call(h, "replaceSel", jo("items" to items, "keepInk" to keepInk)); ink.refreshSelection(); ink.sync(); changed() }
-                hasSel = false
-                ink.clearSelection()
+                if (rows.isEmpty()) toast("Couldn't read that — try writing a little larger") else review = rows
             } catch (e: Exception) { toast(e.message ?: "Conversion failed") }
             busy = null
         }
+    }
+
+    /** Put the checked conversion on the page (replacing the lassoed ink unless "keep ink"). */
+    fun applyReview(rows: List<ReviewRow>) {
+        val items = JSONArray()
+        for (r in rows) {
+            if (r.skip) continue
+            if (r.kind == "text") {
+                if (r.text.isBlank()) continue
+                val top = Math.floor((r.y0 + minOf(r.y1 - r.y0, LINE) * 0.5) / LINE) * LINE
+                items.put(jo("id" to newItemId(), "type" to "text", "x" to r.x0.toDouble(), "y" to top, "w" to 0, "src" to r.text))
+            } else {
+                if (r.tex.isBlank()) continue
+                items.put(jo("id" to newItemId(), "type" to "math", "x" to r.x0.toDouble(), "y" to r.y0.toDouble(), "w" to 0, "src" to latexToSrc(r.tex)))
+            }
+        }
+        review = null
+        if (items.length() > 0) { Core.call(h, "replaceSel", jo("items" to items, "keepInk" to keepInk)); ink.sync(); changed() }
+        ink.clearSelection(); hasSel = false
     }
 
     /* ---------- media ---------- */
@@ -446,6 +462,7 @@ class MainActivity : ComponentActivity() {
             if (pdfChooser) PdfChooser()
             pdfPick?.let { PdfPagePicker(it) }
             cropping?.let { CropDialog(it) }
+            review?.let { ReviewDialog(it) }
             if (settings) Settings()
             if (askModel) AlertDialog(onDismissRequest = { askModel = false },
                 title = { Text("Handwriting model") },
@@ -685,7 +702,7 @@ class MainActivity : ComponentActivity() {
             it.put("type", kind)
             if (kind == "table") it.put("cells", JSONArray(cells.map { r -> JSONArray(r) })).put("cols", JSONArray(List(cells.firstOrNull()?.size ?: 0) { k -> e.item.optJSONArray("cols")?.optDouble(k, 140.0) ?: 140.0 }))
             else it.put("src", src)
-            if (kind != "table" && kind != "image" && src.isBlank()) { if (!isNew) op("removeItem", jo("id" to it.optString("id"))) }
+            if (kind != "table" && kind != "image" && (src.isBlank() || (kind == "math" && srcToLatex(src).isBlank()))) { if (!isNew) op("removeItem", jo("id" to it.optString("id"))) }
             else { Core.call(h, "upsertItem", jo("page" to e.page, "item" to it)); ink.sync(); changed() }
             close()
         }
@@ -693,7 +710,7 @@ class MainActivity : ComponentActivity() {
             Surface(Modifier.widthIn(max = 720.dp).fillMaxWidth(0.92f), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
                     if (kind == "text" || kind == "math") Row {
-                        FilterChip(kind == "text", { kind = "text" }, { Text("Text") }, Modifier.padding(end = 6.dp))
+                        FilterChip(kind == "text", { if (kind == "math") src = src.removePrefix("\\[").removeSuffix("\\]"); kind = "text" }, { Text("Text") }, Modifier.padding(end = 6.dp))
                         FilterChip(kind == "math", { kind = "math" }, { Text("Formula") })
                     }
                     when (kind) {
@@ -715,11 +732,15 @@ class MainActivity : ComponentActivity() {
                         }
                         "image" -> Text("Picture — drag it with the lasso to move it.", Modifier.padding(8.dp))
                         else -> {
-                            OutlinedTextField(src, { src = it; unknown = emptyMap() }, Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                                textStyle = if (kind == "math") TextStyle(fontSize = 18.sp) else TextStyle(fontFamily = Hand, fontSize = 24.sp),
-                                placeholder = { Text(if (kind == "math") "e.g. int_0^oo e^(-x^2) dx = sqrt(pi)/2" else "Type here — formulas like x^2 + 1 = y render as math") })
-                            if (src.isNotBlank()) MathPreview(src, kind == "math")
-                            if (kind == "math") MathKeys { ins -> src += ins }
+                            if (kind == "math") {
+                                val start = remember(e, kind) { srcToLatex(src) }
+                                MathField(start, Modifier.fillMaxWidth().height(430.dp)) { t -> src = latexToSrc(t) }
+                            } else {
+                                OutlinedTextField(src, { src = it; unknown = emptyMap() }, Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                                    textStyle = TextStyle(fontFamily = Hand, fontSize = 24.sp),
+                                    placeholder = { Text("Type here — formulas like x^2 + 1 = y render as math") })
+                                if (src.isNotBlank()) MathPreview(src, false)
+                            }
                             if (kind == "text") Row {
                                 TextButton(onClick = {
                                     val r = Core.util("clean", jo("text" to src, "words" to JSONArray(store.userWords.toList()), "autoMath" to autoMath)) as? JSONObject

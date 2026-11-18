@@ -181,7 +181,6 @@ class InkView(context: Context, val render: Renderer) : View(context) {
     private var selDx = 0f; private var selDy = 0f
     private var selGhost: List<StrokeOp> = emptyList()
     private var lastTapT = 0L; private var lastTapX = 0f; private var lastTapY = 0f
-    private val palmPx = 42f * resources.displayMetrics.density
 
     private fun isPen(ev: MotionEvent, i: Int) = ev.getToolType(i).let { it == MotionEvent.TOOL_TYPE_STYLUS || it == MotionEvent.TOOL_TYPE_ERASER }
     private fun penButton(ev: MotionEvent, i: Int) =
@@ -306,25 +305,31 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                 if (pen) {
                     lastPenSeen = SystemClock.uptimeMillis(); hover = null
                     if (mode == Mode.DRAW && !drawIsPen) Core.call(h, "cancel")
+                    // the wrist landed first and nudged the page: put it back before writing
+                    if (mode == Mode.PAN) restorePan()
                     startDraw(ev, ai, true)
                     return true
                 }
                 // finger
                 if (mode == Mode.DRAW && drawIsPen) return true                 // palm while writing
-                if (mode == Mode.DRAG_SEL) return true
-                val recentPen = SystemClock.uptimeMillis() - lastPenSeen < 700
-                if (ev.getTouchMajor(ai) > palmPx * 1.6f || (recentPen && fingerCount(ev) == 1 && fingerDraws)) {
-                    if (fingerCount(ev) == 1) mode = Mode.PALM
+                if (mode == Mode.DRAG_SEL || mode == Mode.PALM) return true
+                // pen hovering or just lifted: any touch is the hand resting on the screen
+                val penNear = hover != null || SystemClock.uptimeMillis() - lastPenSeen < 900
+                if (penNear || isPalm(ev, ai)) {
+                    if (mode == Mode.PAN) restorePan()
+                    if (mode == Mode.DRAW) Core.call(h, "cancel")
+                    mode = Mode.PALM; invalidate()
                     return true
                 }
                 val n = fingerCount(ev)
                 if (n >= 2) {
                     if (mode == Mode.DRAW) Core.call(h, "cancel")
-                    mode = Mode.PAN; startPan(ev)
+                    if (mode != Mode.PAN) beginPan(ev) else startPan(ev)
+                    mode = Mode.PAN
                 } else if (n == 1) {
                     vt?.clear(); vt?.addMovement(ev)
                     if (fingerDraws || (toolKind() == "text")) startDraw(ev, ai, false)
-                    else if (!lock) { mode = Mode.PAN; startPan(ev) }
+                    else if (!lock) { beginPan(ev); mode = Mode.PAN }
                     else { mode = Mode.NONE; downX = ev.getX(ai); downY = ev.getY(ai); downT = ev.eventTime }
                     // a deliberate one-finger touch with lock on still selects items by tapping
                 }
@@ -332,7 +337,10 @@ class InkView(context: Context, val render: Renderer) : View(context) {
             MotionEvent.ACTION_MOVE -> {
                 when (mode) {
                     Mode.DRAW -> feedDraw(ev)
-                    Mode.PAN -> { vt?.addMovement(ev); pan(ev) }
+                    Mode.PAN -> {
+                        if ((0 until ev.pointerCount).any { !isPen(ev, it) && isPalm(ev, it) }) { restorePan(); mode = Mode.PALM }
+                        else { vt?.addMovement(ev); pan(ev) }
+                    }
                     Mode.DRAG_SEL -> {
                         val idx = ev.findPointerIndex(drawId)
                         if (idx >= 0) { val (px, py) = toPage(drawPage, ev.getX(idx), ev.getY(idx)); selDx = px - downX; selDy = py - downY; invalidate() }
@@ -341,6 +349,8 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {
+                // Android's own palm rejection cancels a touch after the fact (FLAG_CANCELED)
+                if ((ev.flags and 0x20) != 0 && mode == Mode.PAN) { restorePan(); mode = Mode.PALM; return true }
                 val id = ev.getPointerId(ai)
                 if ((mode == Mode.DRAW || mode == Mode.DRAG_SEL) && id == drawId) { if (mode == Mode.DRAW) finishDraw(ev) else endDrag() }
                 else if (mode == Mode.PAN) startPan(ev, ai)
@@ -351,8 +361,9 @@ class InkView(context: Context, val render: Renderer) : View(context) {
                     Mode.DRAG_SEL -> endDrag()
                     Mode.PAN -> {
                         vt?.addMovement(ev); vt?.computeCurrentVelocity(1000)
-                        val vx = vt?.xVelocity ?: 0f; val vy = vt?.yVelocity ?: 0f
-                        if (abs(vy) > 400 || abs(vx) > 400) {
+                        val vx = if (lock) 0f else vt?.xVelocity ?: 0f; val vy = vt?.yVelocity ?: 0f
+                        if ((ev.flags and 0x20) != 0) restorePan()
+                        else if (panArmed && !zooming && (abs(vy) > 400 || abs(vx) > 400)) {
                             scroller.fling(offX.toInt(), offY.toInt(), vx.toInt(), vy.toInt(), Int.MIN_VALUE, Int.MAX_VALUE, Int.MIN_VALUE, Int.MAX_VALUE)
                             postInvalidateOnAnimation()
                         }
@@ -379,6 +390,7 @@ class InkView(context: Context, val render: Renderer) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 if (mode == Mode.DRAW) Core.call(h, "cancel")
+                if (mode == Mode.PAN) restorePan()
                 mode = Mode.NONE; ui.removeCallbacks(holdCheck); invalidate()
             }
         }
@@ -390,7 +402,7 @@ class InkView(context: Context, val render: Renderer) : View(context) {
         for (i in 0 until ev.pointerCount) {
             if (isPen(ev, i)) continue
             if (ev.actionMasked == MotionEvent.ACTION_POINTER_UP && i == ev.actionIndex) continue
-            if (ev.getTouchMajor(i) > palmPx * 1.6f) continue
+            if (isPalm(ev, i)) continue
             n++
         }
         return n
@@ -406,10 +418,44 @@ class InkView(context: Context, val render: Renderer) : View(context) {
         return Triple(cx, cy, if (n > 1) span / n else 0f)
     }
     private fun startPan(ev: MotionEvent, skip: Int = -1) { val (x, y, s) = focus(ev, skip); lastPan.set(x, y); lastSpan = s }
+    /** A contact the size of a palm or wrist rather than a fingertip. */
+    private fun isPalm(ev: MotionEvent, i: Int) = ev.getTouchMajor(i) > bigPx || ev.getToolType(i) == MotionEvent.TOOL_TYPE_PALM
+
+    private val bigPx = 11f * resources.displayMetrics.xdpi / 25.4f
+    private val slopPx = 12f * resources.displayMetrics.density
+    private var panStart = floatArrayOf(0f, 0f, 1f, 1f)
+    private var panArmed = false
+    private var zooming = false
+    private val startFocal = PointF()
+    private var startSpan = 0f
+
+    private fun beginPan(ev: MotionEvent) {
+        panStart = floatArrayOf(offX, offY, zoom, scale)
+        panArmed = false; zooming = false
+        startPan(ev); startFocal.set(lastPan); startSpan = lastSpan
+    }
+    /** Undo whatever this gesture did to the view (it turned out to be a resting hand). */
+    private fun restorePan() {
+        scroller.forceFinished(true)
+        offX = panStart[0]; offY = panStart[1]; zoom = panStart[2]; scale = panStart[3]
+        clamp(); invalidate()
+    }
+
     private fun pan(ev: MotionEvent) {
         val (x, y, s) = focus(ev)
-        offX += x - lastPan.x; offY += y - lastPan.y
-        if (s > 0 && lastSpan > 0) {
+        if (startSpan <= 0f && s > 0f) startSpan = s
+        // nothing moves until the fingers clearly mean it (a resting hand jitters a little)
+        if (!panArmed) {
+            val far = hypot(x - startFocal.x, y - startFocal.y) > slopPx
+            val pinch = s > 0 && startSpan > 0 && abs(s / startSpan - 1f) > 0.12f
+            if (!far && !pinch) return
+            panArmed = true; lastPan.set(x, y); lastSpan = s
+        }
+        // two-finger mode scrolls up and down only
+        if (!lock) offX += x - lastPan.x
+        offY += y - lastPan.y
+        if (s > 0 && lastSpan > 0 && !zooming && startSpan > 0 && abs(s / startSpan - 1f) > (if (lock) 0.18f else 0.08f)) zooming = true
+        if (s > 0 && lastSpan > 0 && zooming) {
             val f = s / lastSpan
             val nz = (zoom * f).coerceIn(0.5f, 5f)
             val k = nz / zoom

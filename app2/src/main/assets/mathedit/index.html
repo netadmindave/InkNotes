@@ -1,0 +1,68 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<link rel="stylesheet" href="mathlive/mathlive-fonts.css">
+<link rel="stylesheet" href="mathlive/mathlive-static.css">
+<style>
+  html, body { margin: 0; padding: 0; background: #FBF8F1; height: 100%; overflow: hidden; font-family: sans-serif; }
+  #wrap { padding: 10px 12px 0; }
+  math-field { display: block; width: 100%; box-sizing: border-box; font-size: 30px; min-height: 64px; padding: 8px 10px;
+    border: 1.5px solid #c9bfa8; border-radius: 10px; background: #fff; color: #1d3557;
+    --caret-color: #5B2A6E; --selection-background-color: #e8dcf2; --contains-highlight-background-color: #f3eef8; --placeholder-color: #b9aec9; }
+  math-field:focus-within { outline: none; border-color: #5B2A6E; }
+  math-field::part(virtual-keyboard-toggle), math-field::part(menu-toggle) { display: none; }
+  #bar { display: flex; gap: 6px; padding: 6px 12px; }
+  #bar button { flex: 0 0 auto; font-size: 15px; padding: 6px 12px; border: 1px solid #d8d0bd; background: #fff; border-radius: 8px; color: #333; }
+  #bar button.on { background: #dccfea; }
+</style></head>
+<body>
+<div id="wrap"><math-field id="mf"></math-field></div>
+<div id="bar">
+  <button id="left">◀</button><button id="right">▶</button><button id="del">⌫</button><button id="clear">Clear</button>
+  <span style="flex:1"></span><button id="abc">ABC keyboard</button>
+</div>
+<script src="mathlive/mathlive.min.js"></script>
+<script>
+  try { MathfieldElement.soundsDirectory = null; MathfieldElement.plonkSound = null; MathfieldElement.keypressSound = null; } catch (e) {}
+  const mf = document.getElementById('mf');
+  let os = false;
+  function sink(on) {
+    try {
+      const s = mf.shadowRoot && (mf.shadowRoot.querySelector('[part=keyboard-sink]') || mf.shadowRoot.querySelector('.ML__keyboard-sink') || mf.shadowRoot.querySelector('textarea'));
+      if (s) s.setAttribute('inputmode', on ? 'text' : 'none');
+    } catch (e) {}
+  }
+  function latex() {
+    let v = '';
+    try { v = mf.getValue('latex-expanded'); } catch (e) { v = mf.value; }
+    return v;
+  }
+  function send() { try { Bridge.input(latex()); } catch (e) {} }
+  function setup() {
+    try {
+      mf.mathVirtualKeyboardPolicy = 'manual';
+      mf.smartFence = true; mf.smartSuperscript = true;
+      mf.popoverPolicy = 'off'; mf.menuItems = [];
+      mf.inlineShortcutTimeout = 0;
+    } catch (e) {}
+    sink(false);
+    try { window.mathVirtualKeyboard.container = document.body; window.mathVirtualKeyboard.layouts = ['numeric', 'symbols', 'greek', 'alphabetic']; } catch (e) {}
+    try { window.mathVirtualKeyboard.show(); } catch (e) {}
+  }
+  mf.addEventListener('mount', setup, { once: true });
+  mf.addEventListener('input', send);
+  mf.addEventListener('focusin', () => { sink(os); if (!os) try { window.mathVirtualKeyboard.show(); } catch (e) {} });
+  document.getElementById('left').onclick = () => { mf.executeCommand('moveToPreviousChar'); mf.focus(); };
+  document.getElementById('right').onclick = () => { mf.executeCommand('moveToNextChar'); mf.focus(); };
+  document.getElementById('del').onclick = () => { mf.executeCommand('deleteBackward'); mf.focus(); send(); };
+  document.getElementById('clear').onclick = () => { mf.value = ''; mf.focus(); send(); };
+  document.getElementById('abc').onclick = (e) => {
+    os = !os; e.target.classList.toggle('on', os); sink(os);
+    try { os ? window.mathVirtualKeyboard.hide() : window.mathVirtualKeyboard.show(); } catch (er) {}
+    mf.blur(); setTimeout(() => mf.focus(), 50);
+  };
+  // called from the app
+  window.setValue = (tex) => { mf.value = tex || ''; setTimeout(() => { mf.focus(); try { mf.executeCommand('moveToMathfieldEnd'); } catch (e) {} ; send(); }, 60); };
+  window.addEventListener('load', () => { try { Bridge.ready(); } catch (e) {} });
+</script>
+</body></html>

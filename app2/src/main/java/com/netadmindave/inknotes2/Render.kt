@@ -187,7 +187,7 @@ class Renderer(val ctx: Context) {
         val key = "$size|$color|$src"
         mathCache.get(key)?.let { return it }
         return try {
-            val tex = Core.tex(src)
+            val tex = tidyTex(Core.tex(src))
             JLatexMathDrawable.builder(tex).textSize(size).color(color).padding(0).align(JLatexMathDrawable.ALIGN_LEFT).build()
                 .also { mathCache.put(key, it) }
         } catch (e: Throwable) { null }
