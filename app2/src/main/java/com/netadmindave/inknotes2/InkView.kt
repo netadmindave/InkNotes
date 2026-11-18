@@ -455,6 +455,8 @@ class InkView(context: Context, val render: Renderer) : View(context) {
     private val pnum = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFB8B1A0.toInt(); textSize = 12f; textAlign = Paint.Align.RIGHT }
 
     override fun onDraw(c: Canvas) {
+        // Compose hosts this view without clipping: never paint outside our own bounds
+        c.clipRect(0, 0, width, height)
         c.drawColor(0xFFECE7DC.toInt())
         if (h == 0L) return
         val livePg = Core.livePage(h)

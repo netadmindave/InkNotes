@@ -48,12 +48,12 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p out
-          cp app2/build/outputs/apk/release/app2-release.apk out/InkNotes2-2.0.${{ github.run_number }}.apk
+          cp app2/build/outputs/apk/release/app2-release.apk out/InkNotes-2.0.${{ github.run_number }}.apk
           ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: InkNotes2-apk
+          name: InkNotes-native-apk
           path: out/*.apk
 
       - name: Publish release
@@ -61,7 +61,7 @@ jobs:
         with:
           tag_name: v2.0.${{ github.run_number }}
           target_commitish: v2-rust
-          name: InkNotes 2.0.${{ github.run_number }}
+          name: InkNotes 2.0.${{ github.run_number }} (native)
           files: out/*.apk
           prerelease: true
           make_latest: false

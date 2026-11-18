@@ -34,6 +34,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -369,7 +370,7 @@ class MainActivity : ComponentActivity() {
         if (u != null && f != null) lifecycleScope.launch(Dispatchers.IO) { contentResolver.openOutputStream(u)?.use { o -> f.inputStream().use { it.copyTo(o) } } }
     }
 
-    fun backup() { saveNow(); pendingBackup = store.exportBackup(true); saveBackup.launch("InkNotes2-backup-${java.text.SimpleDateFormat("yyyy-MM-dd").format(Date())}.json") }
+    fun backup() { saveNow(); pendingBackup = store.exportBackup(true); saveBackup.launch("InkNotes-backup-${java.text.SimpleDateFormat("yyyy-MM-dd").format(Date())}.json") }
 
     fun pdfFile(): File? = try {
         saveNow()
@@ -429,7 +430,7 @@ class MainActivity : ComponentActivity() {
                     TopBar()
                     ToolBar()
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        AndroidView(factory = { ink }, modifier = Modifier.fillMaxSize())
+                        AndroidView(factory = { ink }, modifier = Modifier.fillMaxSize().clipToBounds())
                         if (hasSel) SelectionBar(Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
                         Column(Modifier.align(Alignment.BottomCenter).padding(10.dp)) {
                             if (recMs >= 0) RecordBar()
@@ -461,7 +462,6 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.width(290.dp).fillMaxHeight().background(Color(0xFFF3EEE2)).padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("InkNotes", fontFamily = Hand, fontSize = 34.sp, color = Accent)
-                Text(" 2", fontSize = 14.sp, color = Accent, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { newNote() }) { Icon(Icons.Filled.Add, "New note") }
             }
@@ -836,7 +836,7 @@ class MainActivity : ComponentActivity() {
                     Text("Handwriting model: " + when (Recognizer.state) { "ready" -> "ready (offline)"; "missing" -> "not downloaded"; "downloading" -> "downloading…"; "unavailable" -> "unavailable"; else -> "checking" }, Modifier.padding(top = 12.dp))
                     if (Recognizer.state == "missing") TextButton(onClick = { lifecycleScope.launch { toast(if (Recognizer.download()) "Model ready" else "Download failed") } }) { Text("Download now") }
                     Text("Personal dictionary: ${store.userWords.size} words", Modifier.padding(top = 8.dp), fontSize = 13.sp)
-                    Text("InkNotes 2 · Rust engine + native UI", Modifier.padding(top = 12.dp), fontSize = 12.sp, color = Color(0xFF8A8A8A))
+                    Text("InkNotes · Rust engine + native UI", Modifier.padding(top = 12.dp), fontSize = 12.sp, color = Color(0xFF8A8A8A))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button(onClick = { settings = false }) { Text("Done") } }
                 }
             }
