@@ -140,7 +140,7 @@ mod tests {
         for w in pts.windows(2) { for k in 0..8 { let t = k as f32 / 8.0;
             s = s.wrapping_mul(1103515245).wrapping_add(12345); let a = ((s >> 16) % 1000) as f32 / 1000.0 - 0.5;
             p.push(Pt::new(w[0].0 + (w[1].0 - w[0].0) * t + a * jit, w[0].1 + (w[1].1 - w[0].1) * t - a * jit)); } }
-        Stroke { c: String::new(), s: 2.0, k: String::new(), d: String::new(), g: 0, p, rt: None }
+        Stroke { c: String::new(), s: 2.0, k: String::new(), d: String::new(), g: 0, cut: 0, p, rt: None }
     }
     #[test]
     fn learns_symbols() {

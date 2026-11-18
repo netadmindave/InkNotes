@@ -120,6 +120,8 @@ class MainActivity : ComponentActivity() {
     var cropping by mutableStateOf<ItemEdit?>(null)
     var pdfAsPicture by mutableStateOf(false)
     var review by mutableStateOf<List<ReviewRow>?>(null)
+    var styling by mutableStateOf(false)
+    var lassoRect by mutableStateOf(false)
     var trainTab = 0
     var reviewEditFirst = false
 
@@ -158,6 +160,8 @@ class MainActivity : ComponentActivity() {
             }
             "formula" -> { val (p, x, y) = ink.visibleSpot(); editing = ItemEdit(p, jo("id" to newItemId(), "type" to "math", "x" to x.toDouble(), "y" to y.toDouble(), "w" to 0, "src" to "\\[\\frac{a}{b}+x^2\\]")) }
             "settings" -> settings = true
+            "textedit" -> { val (p, x, y) = ink.visibleSpot(); editing = ItemEdit(p, jo("id" to newItemId(), "type" to "text", "x" to x.toDouble(), "y" to y.toDouble(), "w" to 0,
+                "src" to "Styled text with x^2 + 1 = y inside", "style" to jo("font" to "serif", "size" to 1.3, "bold" to true, "color" to "#2563eb", "align" to "center"))) }
             "pdfpick" -> {}
         }
     }
@@ -179,7 +183,7 @@ class MainActivity : ComponentActivity() {
     private fun loadPrefs() {
         tool = store.pref("tool", "pen"); color = store.pref("color", "#1d3557"); size = store.pref("size2", 2.5f)
         dash = store.pref("dash", ""); shapes = store.pref("shapes", false); eraserSize = store.pref("eraserSize", 10f)
-        eraserWhole = store.pref("eraserWhole", false); fingerDraws = store.pref("fingerDraws", false); lock = store.pref("lock", true)
+        eraserWhole = store.pref("eraserWhole", false); lassoRect = store.pref("lassoRect", false); fingerDraws = store.pref("fingerDraws", false); lock = store.pref("lock", true)
         font = store.pref("font", "caveat"); textScale = store.pref("textScale", 0.8f); autoMath = store.pref("autoMath", true)
         whitePaper = store.pref("whitePaper", false); pdfAsPicture = store.pref("pdfAsPicture", false); drawer = store.pref("drawer", true)
         render.font = font; render.textScale = textScale; render.autoMath = autoMath
@@ -189,7 +193,8 @@ class MainActivity : ComponentActivity() {
     fun pushTool() {
         if (h == 0L) return
         Core.call(h, "tool", jo("kind" to (if (tool == "text") "pen" else tool), "color" to color, "size" to size.toDouble(), "dash" to dash,
-            "shapes" to shapes, "eraserSize" to eraserSize.toDouble(), "eraserWhole" to eraserWhole))
+            "shapes" to shapes, "eraserSize" to eraserSize.toDouble(), "eraserWhole" to eraserWhole, "lassoRect" to lassoRect))
+        store.set("lassoRect", lassoRect)
         store.set("tool", tool); store.set("color", color); store.set("size2", size); store.set("dash", dash); store.set("shapes", shapes)
         store.set("eraserSize", eraserSize); store.set("eraserWhole", eraserWhole)
         if (tool != "lasso" && hasSel) ink.clearSelection()
@@ -485,6 +490,7 @@ class MainActivity : ComponentActivity() {
             pdfPick?.let { PdfPagePicker(it) }
             cropping?.let { CropDialog(it) }
             review?.let { ReviewDialog(it) }
+            if (styling) StyleDialog()
             if (settings) Settings()
             if (askModel) AlertDialog(onDismissRequest = { askModel = false },
                 title = { Text("Handwriting model") },
@@ -597,14 +603,23 @@ class MainActivity : ComponentActivity() {
     fun ToolBar() {
         var sizePop by remember { mutableStateOf(false) }
         var eraserPop by remember { mutableStateOf(false) }
+        var lassoPop by remember { mutableStateOf(false) }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            val tools = listOf("pen" to "✒️", "pencil" to "✏️", "hl" to "🖍️", "eraser" to "🧽", "lasso" to "➰", "text" to "🅣")
+            val tools = listOf("pen" to "✒️", "pencil" to "✏️", "hl" to "🖍️", "eraser" to "🧽", "lasso" to (if (lassoRect) "⬚" else "➰"), "text" to "🅣")
             for ((k, g) in tools) {
                 Box {
                     ToolChip(g, tool == k) {
                         if (tool == k && k == "eraser") eraserPop = true
+                        else if (tool == k && k == "lasso") lassoPop = true
                         else if (tool == k && k in listOf("pen", "pencil", "hl")) sizePop = true
                         else { tool = k; pushTool() }
+                    }
+                    if (k == "lasso") DropdownMenu(lassoPop, { lassoPop = false }) {
+                        Text("Select with", Modifier.padding(horizontal = 12.dp), fontSize = 13.sp)
+                        Row(Modifier.padding(8.dp)) {
+                            FilterChip(!lassoRect, { lassoRect = false; pushTool(); lassoPop = false }, { Text("➰ Free-form") }, Modifier.padding(2.dp))
+                            FilterChip(lassoRect, { lassoRect = true; pushTool(); lassoPop = false }, { Text("⬚ Rectangle") }, Modifier.padding(2.dp))
+                        }
                     }
                     if (k == "eraser") DropdownMenu(eraserPop, { eraserPop = false }) {
                         Row(Modifier.padding(8.dp)) { for ((r, l) in ERASER_SIZES) FilterChip(eraserSize == r, { eraserSize = r; pushTool() }, { Text(l) }, Modifier.padding(2.dp)) }
@@ -614,10 +629,10 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     if (k == tool && k in listOf("pen", "pencil", "hl")) DropdownMenu(sizePop, { sizePop = false }) {
-                        Column(Modifier.width(280.dp).padding(12.dp)) {
+                        Column(Modifier.width(400.dp).padding(12.dp)) {
                             Text("Thickness ${"%.1f".format(size)}")
                             Slider(size, { size = (Math.round(it * 4) / 4f) }, valueRange = 0.5f..12f, onValueChangeFinished = { pushTool() })
-                            Row { for (s in listOf(1f, 1.5f, 2.5f, 4f, 7f)) FilterChip(size == s, { size = s; pushTool() }, { Text("$s") }, Modifier.padding(2.dp)) }
+                            FlowRow { for (s in listOf(0.75f, 1f, 1.5f, 2.5f, 4f, 7f)) FilterChip(size == s, { size = s; pushTool() }, { Text("$s") }, Modifier.padding(2.dp)) }
                             Text("Line", Modifier.padding(top = 8.dp))
                             Row {
                                 for ((d, l) in listOf("" to "Solid", "dash" to "Dashed", "dot" to "Dotted")) FilterChip(dash == d, { dash = d; pushTool() }, { Text(l) }, Modifier.padding(2.dp))
@@ -674,6 +689,7 @@ class MainActivity : ComponentActivity() {
                 val sel = (Core.call(h, "meta") as? JSONObject)?.optJSONObject("sel")
                 val oneItem = sel?.optJSONArray("items")?.takeIf { it.length() == 1 && sel.optInt("strokes") == 0 }?.getString(0)
                 if (oneItem != null) TextButton(onClick = { ink.onItemTap(sel.optInt("page"), oneItem) }) { Text("Edit") }
+                if ((sel?.optJSONArray("items")?.length() ?: 0) > 0) TextButton(onClick = { styling = true }) { Text("Aa Text style") }
                 TextButton(onClick = { op("deleteSel"); ink.refreshSelection() }) { Text("Delete", color = Color(0xFFB91C1C)) }
                 IconButton(onClick = { ink.clearSelection() }) { Icon(Icons.Filled.Close, "Done") }
             }
@@ -717,6 +733,7 @@ class MainActivity : ComponentActivity() {
             mutableStateOf(init)
         }
         var unknown by remember(e) { mutableStateOf(mapOf<String, List<String>>()) }
+        var tstyle by remember(e) { mutableStateOf(e.item.optJSONObject("style") ?: JSONObject()) }
         val isNew = Core.call(h, "page", jo("page" to e.page)).let { p -> (p as? JSONObject)?.optJSONArray("items")?.let { a -> (0 until a.length()).none { a.getJSONObject(it).optString("id") == e.item.optString("id") } } ?: true }
         fun close() { editing = null }
         fun save() {
@@ -724,6 +741,7 @@ class MainActivity : ComponentActivity() {
             it.put("type", kind)
             if (kind == "table") it.put("cells", JSONArray(cells.map { r -> JSONArray(r) })).put("cols", JSONArray(List(cells.firstOrNull()?.size ?: 0) { k -> e.item.optJSONArray("cols")?.optDouble(k, 140.0) ?: 140.0 }))
             else it.put("src", src)
+            if (kind == "text") { if (tstyle.length() > 0) it.put("style", tstyle) else it.remove("style") }
             if (kind != "table" && kind != "image" && (src.isBlank() || (kind == "math" && srcToLatex(src).isBlank()))) { if (!isNew) op("removeItem", jo("id" to it.optString("id"))) }
             else { Core.call(h, "upsertItem", jo("page" to e.page, "item" to it)); ink.sync(); changed() }
             close()
@@ -761,7 +779,8 @@ class MainActivity : ComponentActivity() {
                                 OutlinedTextField(src, { src = it; unknown = emptyMap() }, Modifier.fillMaxWidth().heightIn(min = 120.dp),
                                     textStyle = TextStyle(fontFamily = Hand, fontSize = 24.sp),
                                     placeholder = { Text("Type here — formulas like x^2 + 1 = y render as math") })
-                                if (src.isNotBlank()) MathPreview(src, false)
+                                if (src.isNotBlank()) MathPreview(src, false, tstyle)
+                                TextStyleBar(tstyle) { tstyle = it }
                             }
                             if (kind == "text") Row {
                                 TextButton(onClick = {
@@ -793,11 +812,11 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun MathPreview(src: String, math: Boolean) {
+    fun MathPreview(src: String, math: Boolean, style: JSONObject? = null) {
         if (math) TexImage(src, 28f, Modifier.fillMaxWidth().padding(vertical = 8.dp).background(Paper))
         else {
-            val bm = remember(src) {
-                val l = render.layoutText(src, 900f)
+            val bm = remember(src, style.toString()) {
+                val l = render.layoutText(src, 900f, style = style)
                 val b = android.graphics.Bitmap.createBitmap(maxOf(1, l.w.toInt() + 8), maxOf(1, l.h.toInt() + 8), android.graphics.Bitmap.Config.ARGB_8888)
                 l.draw(android.graphics.Canvas(b)); b.asImageBitmap()
             }

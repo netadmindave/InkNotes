@@ -5,7 +5,7 @@ mkdir -p shots
 adb install -r app2/build/outputs/apk/debug/app2-debug.apk
 adb shell pm grant com.netadmindave.inknotes2 android.permission.RECORD_AUDIO || true
 adb shell settings put system user_rotation 1
-for d in main train0 train1 train2 review review-edit formula settings; do
+for d in main train0 textedit review-edit formula; do
   adb shell am force-stop com.netadmindave.inknotes2
   adb logcat -c
   if [ "$d" = main ]; then adb shell am start -W -n com.netadmindave.inknotes2/.MainActivity

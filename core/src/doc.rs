@@ -13,6 +13,8 @@ pub struct Tool {
     pub shapes: bool,
     pub eraser_size: f32,
     pub eraser_whole: bool,
+    /// lasso draws a rectangle instead of a free-form loop
+    pub lasso_rect: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -151,7 +153,7 @@ impl Doc {
             "lasso" => Live::Lasso { page, poly: vec![[x, y]] },
             _ => {
                 let k = match kind.as_str() { "pencil" => "pc", "hl" => "hl", _ => "" };
-                Live::Draw { page, st: Stroke { c: self.tool.color.clone(), s: self.tool.size, k: k.into(), d: self.tool.dash.clone(), g: 0,
+                Live::Draw { page, st: Stroke { c: self.tool.color.clone(), s: self.tool.size, k: k.into(), d: self.tool.dash.clone(), g: 0, cut: 0,
                     p: vec![Pt { x, y, p: pressure, t: 0.0 }], rt } }
             }
         };
@@ -181,7 +183,11 @@ impl Doc {
                 }
             }
             Live::Erase { .. } => { for q in pts { self.erase_step(&mut live, q[0], q[1]); } }
-            Live::Lasso { poly, .. } => { for q in pts { poly.push([q[0], q[1]]); } }
+            Live::Lasso { poly, .. } => {
+                if self.tool.lasso_rect {
+                    if let Some(q) = pts.last() { let s = poly[0]; *poly = vec![s, [q[0], s[1]], [q[0], q[1]], [s[0], q[1]]]; }
+                } else { for q in pts { poly.push([q[0], q[1]]); } }
+            }
             Live::None => {}
         }
         self.live = live;

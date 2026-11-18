@@ -98,6 +98,14 @@ class InkView(context: Context, val render: Renderer) : View(context) {
         invalidate()
     }
 
+    private val lastTouch = PointF()
+    private fun refreshPage(i: Int) {
+        val p = pages.getOrNull(i) ?: return
+        val v = Core.version(h, i)
+        if (v != p.ver) { p.ops = decodeGeom(Core.pageGeom(h, i)); p.ver = v }
+    }
+    private var erasing = false
+
     fun relayoutItems() { for (p in pages) p.ver = -1; sync() }
 
     private fun layoutPages() {
@@ -212,6 +220,8 @@ class InkView(context: Context, val render: Renderer) : View(context) {
         }
         val kind = toolKind()
         val btn = pen && penButton(ev, idx)
+        erasing = btn || kind == "eraser"
+        lastTouch.set(x, y)
         if (kind == "text" && !btn) {
             mode = Mode.DRAW; drawId = ev.getPointerId(idx); drawPage = pg; downX = px; downY = py; downT = ev.eventTime; moved = false; drawIsPen = pen
             return
@@ -246,6 +256,9 @@ class InkView(context: Context, val render: Renderer) : View(context) {
             }
         }
         if (toolKind() != "text" || Core.livePage(h) >= 0) Core.extend(h, arr)
+        // erasing changes the page as the pen moves: redraw it live
+        refreshPage(drawPage)
+        lastTouch.set(ev.getX(idx), ev.getY(idx))
         invalidate()
     }
 
@@ -583,6 +596,7 @@ class InkView(context: Context, val render: Renderer) : View(context) {
             c.drawText("${i + 1}", p.w - MARGIN_R, p.hgt - 18f, pnum)
             c.restore()
         }
+        if (mode == Mode.DRAW && erasing) c.drawCircle(lastTouch.x, lastTouch.y, eraserRadius() * scale, cursor.apply { color = 0x99000000.toInt() })
         hover?.let { hp ->
             val r = if (hoverErase) eraserRadius() * scale else 3f
             cursor.color = if (hoverErase) 0x99000000.toInt() else 0x66000000

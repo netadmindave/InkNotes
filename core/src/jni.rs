@@ -130,7 +130,7 @@ pub fn call(d: &mut Doc, op: &str, a: &Value) -> Value {
         "tool" => {
             let t = &mut d.tool;
             t.kind = st("kind"); t.color = st("color"); t.size = f("size"); t.dash = st("dash");
-            t.shapes = b("shapes"); t.eraser_size = f("eraserSize"); t.eraser_whole = b("eraserWhole");
+            t.shapes = b("shapes"); t.eraser_size = f("eraserSize"); t.eraser_whole = b("eraserWhole"); t.lasso_rect = b("lassoRect");
         }
         "cancel" => d.cancel(),
         "undo" => { d.undo(); }

@@ -53,6 +53,9 @@ pub struct Stroke {
     /// geometry: 0 freehand, 1 open shape (straight segments), 2 closed shape
     #[serde(default, skip_serializing_if = "is_zero")]
     pub g: u8,
+    /// ends made by the eraser (1 = start, 2 = end): drawn square-cut instead of tapered
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub cut: u8,
     pub p: Vec<Pt>,
     /// voice-recording sync: (recording index, ms into the recording when the stroke was written)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -98,6 +101,9 @@ pub struct Item {
     /// picture justification on the page: "left" | "center" | "right" (empty = free)
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub align: String,
+    /// text style: {"font","size","color","bold","italic","underline","align"}
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rt: Option<(u32, i64)>,
 }
@@ -108,7 +114,7 @@ fn is_fzero(v: &f32) -> bool {
 
 impl Item {
     pub fn new(kind: &str, id: String, x: f32, y: f32, w: f32) -> Self {
-        Item { id, kind: kind.into(), x, y, w, h: 0.0, src: String::new(), file: String::new(), cells: vec![], cols: vec![], crop: None, align: String::new(), rt: None }
+        Item { id, kind: kind.into(), x, y, w, h: 0.0, src: String::new(), file: String::new(), cells: vec![], cols: vec![], crop: None, align: String::new(), style: None, rt: None }
     }
 }
 

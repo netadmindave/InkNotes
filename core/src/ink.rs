@@ -34,6 +34,8 @@ pub fn geometry(st: &Stroke) -> Geometry {
         _ => {
             o.size = st.s; o.thinning = 0.5; o.smoothing = 0.6; o.streamline = 0.45; o.simulate_pressure = !has_pressure;
             if !has_pressure { o.taper_start = 6.0; o.taper_end = 10.0; }
+            if st.cut & 1 != 0 { o.taper_start = 0.0; }
+            if st.cut & 2 != 0 { o.taper_end = 0.0; }
         }
     }
     let pts: Vec<[f32; 3]> = st.p.iter().map(|q| [q.x, q.y, q.p]).collect();
@@ -303,41 +305,83 @@ fn dense_pts(p: &[Pt], step: f32) -> Vec<Pt> {
 /// Erase a disc of radius r. "area" keeps the parts outside the disc; "stroke" removes touched strokes.
 /// Returns true when something changed.
 pub fn erase_disc(strokes: &mut Vec<Stroke>, x: f32, y: f32, r: f32, whole: bool) -> bool {
+    erase_capsule(strokes, x, y, x, y, r, whole)
+}
+
+fn capsule_dist(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
+    let (dx, dy) = (bx - ax, by - ay);
+    let l2 = dx * dx + dy * dy;
+    let t = if l2 > 0.0 { (((px - ax) * dx + (py - ay) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+    (px - ax - t * dx).hypot(py - ay - t * dy)
+}
+fn lerp_pt(a: Pt, b: Pt, t: f32) -> Pt { Pt { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, p: a.p + (b.p - a.p) * t, t: a.t + (b.t - a.t) * t } }
+
+/// Erase exactly what the eraser (a disc of radius `r` swept from (x0,y0) to (x1,y1)) covers.
+/// The rest of each stroke keeps its original points, so it looks the same as before;
+/// only the cut ends are new (found to sub-pixel accuracy).
+pub fn erase_capsule(strokes: &mut Vec<Stroke>, x0: f32, y0: f32, x1: f32, y1: f32, r: f32, whole: bool) -> bool {
     let mut changed = false;
     let mut out = Vec::with_capacity(strokes.len());
     for st in strokes.drain(..) {
         let rr = r + width_of(&st) / 2.0;
         let b = st.bounds();
-        if st.p.is_empty() || x < b.x0 - rr || x > b.x1 + rr || y < b.y0 - rr || y > b.y1 + rr {
+        if st.p.is_empty() || x0.max(x1) < b.x0 - rr || x0.min(x1) > b.x1 + rr || y0.max(y1) < b.y0 - rr || y0.min(y1) > b.y1 + rr {
             out.push(st);
             continue;
         }
-        let dp = dense_pts(&st.p, if whole { (rr / 2.0).max(1.0) } else { (rr / 3.0).max(0.8) });
-        let inside = |q: &Pt| (q.x - x).hypot(q.y - y) < rr;
+        let inside = |q: &Pt| capsule_dist(q.x, q.y, x0, y0, x1, y1) < rr;
+        let step = (rr / 4.0).clamp(0.3, 1.0);
+        let p = &st.p;
+        if p.len() == 1 { if inside(&p[0]) { changed = true; } else { out.push(st); } continue; }
         if whole {
-            if dp.iter().any(inside) { changed = true; } else { out.push(st); }
+            let hit = p.windows(2).any(|w| {
+                let m = ((w[0].x - w[1].x).hypot(w[0].y - w[1].y) / step).ceil().max(1.0) as usize;
+                (0..=m).any(|k| inside(&lerp_pt(w[0], w[1], k as f32 / m as f32)))
+            });
+            if hit { changed = true; } else { out.push(st); }
             continue;
         }
-        let mut pieces: Vec<Vec<Pt>> = vec![];
-        let mut run = vec![];
-        let mut hit = false;
-        for q in &dp {
-            if inside(q) { hit = true; if !run.is_empty() { pieces.push(std::mem::take(&mut run)); } } else { run.push(*q); }
+        let mut pieces: Vec<(Vec<Pt>, u8)> = vec![];
+        let mut run: Vec<Pt> = vec![];
+        let mut run_cut = 0u8;
+        let mut cur_in = inside(&p[0]);
+        let mut hit = cur_in;
+        if !cur_in { run.push(p[0]); }
+        for w in p.windows(2) {
+            let (a, bb) = (w[0], w[1]);
+            let m = ((a.x - bb.x).hypot(a.y - bb.y) / step).ceil().max(1.0) as usize;
+            let mut prev_t = 0.0f32;
+            for k in 1..=m {
+                let t = k as f32 / m as f32;
+                let q_in = inside(&lerp_pt(a, bb, t));
+                if q_in != cur_in {
+                    let (mut lo, mut hi) = (prev_t, t);
+                    for _ in 0..10 { let mid = (lo + hi) / 2.0; if inside(&lerp_pt(a, bb, mid)) == cur_in { lo = mid } else { hi = mid } }
+                    let edge = lerp_pt(a, bb, if cur_in { hi } else { lo });
+                    if cur_in { run = vec![edge]; run_cut = 1; }            // leaving the eraser: a new piece starts here
+                    else { run.push(edge); pieces.push((std::mem::take(&mut run), run_cut | 2)); hit = true; }
+                    cur_in = q_in;
+                }
+                prev_t = t;
+            }
+            if !cur_in { if run.last().map(|l| l.x != bb.x || l.y != bb.y).unwrap_or(true) { run.push(bb); } } else { hit = true; }
         }
-        if !run.is_empty() { pieces.push(run); }
+        if !cur_in && !run.is_empty() { pieces.push((run, run_cut)); }
         if !hit { out.push(st); continue; }
         changed = true;
         // a closed outline cut once is still one piece
-        let closes = (dp[0].x - dp[dp.len() - 1].x).hypot(dp[0].y - dp[dp.len() - 1].y) < 4.0;
-        if st.g == 2 && pieces.len() >= 2 && closes && pieces[0][0] == dp[0] && *pieces.last().unwrap().last().unwrap() == dp[dp.len() - 1] {
-            let mut tail = pieces.pop().unwrap();
-            tail.extend(pieces[0].drain(..));
-            pieces[0] = tail;
+        let closes = (p[0].x - p[p.len() - 1].x).hypot(p[0].y - p[p.len() - 1].y) < 4.0;
+        if st.g == 2 && pieces.len() >= 2 && closes && pieces[0].1 & 1 == 0 && pieces.last().unwrap().1 & 2 == 0 {
+            let (mut tail, tc) = pieces.pop().unwrap();
+            tail.extend(pieces[0].0.drain(..));
+            pieces[0] = (tail, (tc & 1) | (pieces[0].1 & 2));
         }
-        for pc in pieces {
-            if pc.len() < 2 { continue; }
+        for (pc, cut) in pieces {
+            let len: f32 = pc.windows(2).map(|w| (w[0].x - w[1].x).hypot(w[0].y - w[1].y)).sum();
+            if pc.len() < 2 || len < 0.6 { continue; }
             let mut ns = st.clone();
             ns.p = pc;
+            ns.cut = st.cut | cut;
             if st.g == 2 { ns.g = 1; }
             out.push(ns);
         }
@@ -346,16 +390,32 @@ pub fn erase_disc(strokes: &mut Vec<Stroke>, x: f32, y: f32, r: f32, whole: bool
     changed
 }
 
-/// Erase along a path so fast moves don't skip.
+/// Erase along a path (the eraser swept between two pen positions, so fast moves don't skip).
 pub fn erase_along(strokes: &mut Vec<Stroke>, x0: f32, y0: f32, x1: f32, y1: f32, r: f32, whole: bool) -> bool {
-    let d = (x1 - x0).hypot(y1 - y0);
-    let n = (d / (r / 2.0).max(2.0)).ceil().max(1.0) as usize;
-    let mut changed = false;
-    for k in 1..=n {
-        let t = k as f32 / n as f32;
-        changed |= erase_disc(strokes, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, whole);
+    erase_capsule(strokes, x0, y0, x1, y1, r, whole)
+}
+
+#[cfg(test)]
+mod erase_tests {
+    use super::*;
+    #[test]
+    fn erases_only_under_the_pen_and_keeps_points() {
+        let pts: Vec<Pt> = (0..=20).map(|i| Pt { x: i as f32 * 10.0, y: 0.0, p: 0.7, t: i as f32 }).collect();
+        let st = Stroke { c: "#000".into(), s: 2.0, k: String::new(), d: String::new(), g: 0, cut: 0, p: pts.clone(), rt: None };
+        let mut v = vec![st];
+        assert!(erase_disc(&mut v, 100.0, 0.0, 5.0, false));
+        assert_eq!(v.len(), 2);
+        // radius 5 + half the line width (1) = 6: the gap is exactly 94..106
+        assert!((v[0].p.last().unwrap().x - 94.0).abs() < 0.05, "{}", v[0].p.last().unwrap().x);
+        assert!((v[1].p[0].x - 106.0).abs() < 0.05);
+        // untouched points are the original ones
+        assert_eq!(v[0].p[3].x, 30.0);
+        assert_eq!(v[0].cut, 2); assert_eq!(v[1].cut, 1);
+        // sweeping the eraser along removes the whole span it passed over
+        assert!(erase_along(&mut v, 20.0, 0.0, 60.0, 0.0, 3.0, false));
+        assert!((v[0].p.last().unwrap().x - 16.0).abs() < 0.05);
+        assert!((v[1].p[0].x - 64.0).abs() < 0.05);
     }
-    changed
 }
 
 /* ---------------- lasso ---------------- */
@@ -385,7 +445,7 @@ pub fn lasso_strokes(strokes: &[Stroke], poly: &[P]) -> Vec<usize> {
 mod tests {
     use super::*;
     fn line(x0: f32, x1: f32, y: f32) -> Stroke {
-        Stroke { c: "#000".into(), s: 2.5, k: String::new(), d: String::new(), g: 0,
+        Stroke { c: "#000".into(), s: 2.5, k: String::new(), d: String::new(), g: 0, cut: 0,
             p: (0..=20).map(|i| Pt::new(x0 + (x1 - x0) * i as f32 / 20.0, y)).collect(), rt: None }
     }
     #[test]

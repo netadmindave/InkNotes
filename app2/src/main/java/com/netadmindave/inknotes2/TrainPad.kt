@@ -29,12 +29,15 @@ class TrainPad(context: Context) : View(context) {
     override fun onTouchEvent(e: MotionEvent): Boolean {
         if (e.pointerCount > 1) return true
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { if (strokes.isEmpty()) t0 = e.eventTime; strokes.add(arrayListOf(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))) }
+            MotionEvent.ACTION_DOWN -> {
+                // the training screen scrolls; keep the whole stroke for the pad
+                parent?.requestDisallowInterceptTouchEvent(true)
+                if (strokes.isEmpty()) t0 = e.eventTime; strokes.add(arrayListOf(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))) }
             MotionEvent.ACTION_MOVE -> strokes.lastOrNull()?.let { s ->
                 for (k in 0 until e.historySize) s.add(floatArrayOf(e.getHistoricalX(k), e.getHistoricalY(k), (e.getHistoricalEventTime(k) - t0).toFloat()))
                 s.add(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))
             }
-            MotionEvent.ACTION_UP -> onChange()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { parent?.requestDisallowInterceptTouchEvent(false); onChange() }
         }
         invalidate(); return true
     }

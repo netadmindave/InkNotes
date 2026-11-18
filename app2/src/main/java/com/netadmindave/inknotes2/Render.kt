@@ -200,8 +200,29 @@ class Renderer(val ctx: Context) {
     val textPaint: TextPaint get() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = this@Renderer.typeface; textSize = this@Renderer.textSize; color = INK }
 
     /** Lay out a text item: paragraphs, word wrap at `maxW`, `$…$` and auto-detected formulas drawn as math. */
-    fun layoutText(src: String, maxW: Float, color: Int = INK, misspelt: Set<String> = emptySet()): Laid {
-        val tp = textPaint.apply { this.color = color }
+    /** Typeface for a text style's font key, with bold/italic applied. */
+    fun styledTypeface(st: JSONObject?): Typeface {
+        val base = when (val f = st?.optString("font", "") ?: "") {
+            "", "default" -> typeface
+            "sans" -> Typeface.SANS_SERIF
+            "serif" -> Typeface.SERIF
+            "mono" -> Typeface.MONOSPACE
+            else -> fonts[f]?.let { ResourcesCompat.getFont(ctx, it.first) } ?: typeface
+        }
+        val flags = (if (st?.optBoolean("bold") == true) Typeface.BOLD else 0) or (if (st?.optBoolean("italic") == true) Typeface.ITALIC else 0)
+        return if (flags == 0) base else Typeface.create(base, flags)
+    }
+
+    fun layoutText(src: String, maxW: Float, color: Int = INK, misspelt: Set<String> = emptySet(), style: JSONObject? = null): Laid {
+        val scaleF = (style?.optDouble("size", 1.0) ?: 1.0).toFloat().coerceIn(0.4f, 4f)
+        val styleColor = style?.optString("color", "")?.takeIf { it.isNotEmpty() }?.let { try { Color.parseColor(it) } catch (e: Exception) { null } }
+        val align = style?.optString("align", "") ?: ""
+        val tp = textPaint.apply {
+            this.color = styleColor ?: color
+            textSize *= scaleF
+            typeface = styledTypeface(style)
+            isUnderlineText = style?.optBoolean("underline") == true
+        }
         val fm = tp.fontMetrics
         val lineH = LINE.coerceAtLeast(fm.descent - fm.ascent)
         val draws = ArrayList<(Canvas) -> Unit>()
@@ -230,7 +251,7 @@ class Renderer(val ctx: Context) {
             for (sp in spans) {
                 if (sp.first > p) words(para.substring(p, sp.first))
                 val raw = para.substring(sp.first, sp.last + 1).trim('$')
-                val d = math(raw, textSize * 0.82f, color)
+                val d = math(raw, tp.textSize * 0.82f, tp.color)
                 val spaceBefore = sp.first > 0 && para[sp.first - 1] == ' '
                 if (d != null) runs.add(Run(null, d, d.intrinsicWidth.toFloat(), d.intrinsicHeight.toFloat(), spaceBefore))
                 else runs.add(Run(raw, null, tp.measureText(raw), lineH, spaceBefore))
@@ -246,8 +267,10 @@ class Renderer(val ctx: Context) {
                 val rows = Math.ceil((h / LINE).toDouble()).toFloat().coerceAtLeast(1f) * LINE
                 val base = y + rows - LINE * 0.28f
                 val items = line.toList()
+                val off = when (align) { "center" -> ((maxW - x) / 2f).coerceAtLeast(0f); "right" -> (maxW - x).coerceAtLeast(0f); else -> 0f }
                 draws.add { c ->
-                    for ((r, rx) in items) {
+                    for ((r, rx0) in items) {
+                        val rx = rx0 + off
                         if (r.math != null) {
                             val mh = r.h
                             c.save(); c.translate(rx, base - mh + mh * 0.18f.coerceAtMost(0.3f) + (if (mh < LINE) (LINE * 0.18f) else 0f) - LINE * 0.08f)
@@ -263,7 +286,7 @@ class Renderer(val ctx: Context) {
                         }
                     }
                 }
-                widest = maxOf(widest, x)
+                widest = maxOf(widest, if (align == "center" || align == "right") maxW else x)
                 y += rows
                 line = ArrayList(); x = 0f
             }
@@ -332,7 +355,7 @@ class Renderer(val ctx: Context) {
                 }
             }
             else -> {
-                val l = layoutText(it.optString("src"), maxW, INK, misspelt)
+                val l = layoutText(it.optString("src"), maxW, INK, misspelt, it.optJSONObject("style"))
                 ItemBox(id, kind, RectF(x, y, x + maxOf(l.w, 24f), y + maxOf(l.h, LINE))) { c -> c.save(); c.translate(x, y); l.draw(c); c.restore() }
             }
         }

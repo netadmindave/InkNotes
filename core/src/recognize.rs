@@ -754,7 +754,7 @@ mod tests {
         let mut p = vec![];
         for w in pts.windows(2) { for k in 0..8 { let t = k as f32 / 8.0; p.push(Pt::new(w[0].0 + (w[1].0 - w[0].0) * t, w[0].1 + (w[1].1 - w[0].1) * t)); } }
         p.push(Pt::new(pts.last().unwrap().0, pts.last().unwrap().1));
-        Stroke { c: "#000".into(), s: 2.0, k: String::new(), d: String::new(), g: 0, p, rt: None }
+        Stroke { c: "#000".into(), s: 2.0, k: String::new(), d: String::new(), g: 0, cut: 0, p, rt: None }
     }
     struct Glyph { label: &'static str, strokes: Vec<Stroke> }
     fn plus(x: f32, y: f32, sz: f32, read: &'static str) -> Glyph { Glyph { label: read, strokes: vec![s(&[(x, y + sz / 2.0), (x + sz, y + sz / 2.0)]), s(&[(x + sz / 2.0, y), (x + sz / 2.0, y + sz)])] } }
