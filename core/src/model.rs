@@ -92,6 +92,9 @@ pub struct Item {
     /// table column widths (page px)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cols: Vec<f32>,
+    /// picture crop as fractions of the image: left, top, right, bottom
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop: Option<[f32; 4]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rt: Option<(u32, i64)>,
 }
@@ -102,7 +105,7 @@ fn is_fzero(v: &f32) -> bool {
 
 impl Item {
     pub fn new(kind: &str, id: String, x: f32, y: f32, w: f32) -> Self {
-        Item { id, kind: kind.into(), x, y, w, h: 0.0, src: String::new(), file: String::new(), cells: vec![], cols: vec![], rt: None }
+        Item { id, kind: kind.into(), x, y, w, h: 0.0, src: String::new(), file: String::new(), cells: vec![], cols: vec![], crop: None, rt: None }
     }
 }
 

@@ -77,6 +77,13 @@ fun decodeGeom(g: FloatArray): List<StrokeOp> {
     return out
 }
 
+/** Picture crop [l, t, r, b] as fractions (whole picture when absent). */
+fun cropOf(it: JSONObject): FloatArray {
+    val a = it.optJSONArray("crop") ?: return floatArrayOf(0f, 0f, 1f, 1f)
+    val v = FloatArray(4) { k -> a.optDouble(k, if (k < 2) 0.0 else 1.0).toFloat() }
+    return if (v[2] - v[0] < 0.01f || v[3] - v[1] < 0.01f) floatArrayOf(0f, 0f, 1f, 1f) else v
+}
+
 /** Shared drawing for screen and PDF export. */
 class Renderer(val ctx: Context) {
     private val fonts = mapOf(
@@ -138,6 +145,9 @@ class Renderer(val ctx: Context) {
             }
         } catch (e: Exception) { null }
     }
+
+    /** A PDF page as a bitmap `wPx` wide (blocking; call off the main thread). */
+    fun pdfPage(file: File, page: Int, wPx: Int): Bitmap? = renderPdf(file, page, wPx)
 
     /** Draw a PDF page into (0,0,w,h). `px` is the wanted bitmap width; async on screen, sync for export. */
     fun drawPdf(c: Canvas, file: File, page: Int, w: Float, h: Float, px: Int, sync: Boolean) {
@@ -293,8 +303,10 @@ class Renderer(val ctx: Context) {
                 val f = File(File(ctx.filesDir, "media"), it.optString("file"))
                 val bm = image(f)
                 if (w <= 0) w = minOf(360f, pageW - x - MARGIN_R)
-                val h = if (h0 > 0) h0 else if (bm != null) w * bm.height / bm.width else w * 0.75f
-                ItemBox(id, kind, RectF(x, y, x + w, y + h)) { c -> if (bm != null) c.drawBitmap(bm, null, RectF(x, y, x + w, y + h), bmpPaint) else c.drawRect(x, y, x + w, y + h, grid) }
+                val cr = cropOf(it)
+                val h = if (bm != null) w * ((cr[3] - cr[1]) * bm.height) / ((cr[2] - cr[0]) * bm.width) else if (h0 > 0) h0 else w * 0.75f
+                val src = if (bm != null) Rect((cr[0] * bm.width).toInt(), (cr[1] * bm.height).toInt(), (cr[2] * bm.width).toInt(), (cr[3] * bm.height).toInt()) else null
+                ItemBox(id, kind, RectF(x, y, x + w, y + h)) { c -> if (bm != null) c.drawBitmap(bm, src, RectF(x, y, x + w, y + h), bmpPaint) else c.drawRect(x, y, x + w, y + h, grid) }
             }
             "table" -> {
                 val cells = it.optJSONArray("cells") ?: JSONArray()

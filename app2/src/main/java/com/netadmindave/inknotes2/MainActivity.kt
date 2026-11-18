@@ -113,6 +113,10 @@ class MainActivity : ComponentActivity() {
     var autoMath by mutableStateOf(true)
     var whitePaper by mutableStateOf(false)
     var search by mutableStateOf("")
+    var pdfPick by mutableStateOf<PdfPick?>(null)
+    var pdfChooser by mutableStateOf(false)
+    var cropping by mutableStateOf<ItemEdit?>(null)
+    var pdfAsPicture by mutableStateOf(false)
 
     fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
@@ -136,7 +140,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleIntent(intent) }
     private fun handleIntent(i: Intent?) {
-        if (i?.action == Intent.ACTION_VIEW && i.data != null && (i.type == "application/pdf" || i.data.toString().endsWith(".pdf"))) importPdf(i.data!!, true)
+        if (i?.action == Intent.ACTION_VIEW && i.data != null && (i.type == "application/pdf" || i.data.toString().endsWith(".pdf"))) { if (pdfAsPicture) pdfForPicture(i.data!!) else importPdf(i.data!!, true) }
+    }
+
+    /** "Question from PDF": recent PDFs first, otherwise the file picker. */
+    fun startPdfQuestion() { if (recentPdfs().isEmpty()) pickPdfPicture.launch(arrayOf("application/pdf")) else pdfChooser = true }
+    fun pdfForPicture(uri: Uri) {
+        lifecycleScope.launch {
+            val name = withContext(Dispatchers.IO) { store.importMedia(uri, "pdf") } ?: return@launch toast("Couldn't open that PDF")
+            choosePage(name, displayName(uri)?.removeSuffix(".pdf") ?: "PDF")
+        }
     }
 
     private fun loadPrefs() {
@@ -144,7 +157,7 @@ class MainActivity : ComponentActivity() {
         dash = store.pref("dash", ""); shapes = store.pref("shapes", false); eraserSize = store.pref("eraserSize", 10f)
         eraserWhole = store.pref("eraserWhole", false); fingerDraws = store.pref("fingerDraws", false); lock = store.pref("lock", true)
         font = store.pref("font", "caveat"); textScale = store.pref("textScale", 0.8f); autoMath = store.pref("autoMath", true)
-        whitePaper = store.pref("whitePaper", false); drawer = store.pref("drawer", true)
+        whitePaper = store.pref("whitePaper", false); pdfAsPicture = store.pref("pdfAsPicture", false); drawer = store.pref("drawer", true)
         render.font = font; render.textScale = textScale; render.autoMath = autoMath
         ink.fingerDraws = fingerDraws; ink.lock = lock; ink.whitePaper = whitePaper
     }
@@ -172,7 +185,10 @@ class MainActivity : ComponentActivity() {
         ink.onItemTap = { pg, id ->
             val p = Core.call(h, "page", jo("page" to pg)) as? JSONObject
             val arr = p?.optJSONArray("items")
-            if (arr != null) for (k in 0 until arr.length()) if (arr.getJSONObject(k).optString("id") == id) editing = ItemEdit(pg, arr.getJSONObject(k))
+            if (arr != null) for (k in 0 until arr.length()) if (arr.getJSONObject(k).optString("id") == id) {
+                val o = arr.getJSONObject(k)
+                if (o.optString("type") == "image") cropping = ItemEdit(pg, o) else editing = ItemEdit(pg, o)
+            }
         }
         ink.onSeek = { rec, ms -> playRecording(rec, ms) }
     }
@@ -331,6 +347,7 @@ class MainActivity : ComponentActivity() {
 
     private val pickImage = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { it?.let(::addImage) }
     private val pickPdfNew = registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { u -> importPdf(u, true) } }
+    val pickPdfPicture = registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { u -> pdfForPicture(u) } }
     private val pickPdfHere = registerForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { u -> importPdf(u, false) } }
     private val pickBackup = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u ->
         if (u == null) return@registerForActivityResult
@@ -425,6 +442,9 @@ class MainActivity : ComponentActivity() {
             }
             editing?.let { ItemEditor(it) }
             if (training) Trainer()
+            if (pdfChooser) PdfChooser()
+            pdfPick?.let { PdfPagePicker(it) }
+            cropping?.let { CropDialog(it) }
             if (settings) Settings()
             if (askModel) AlertDialog(onDismissRequest = { askModel = false },
                 title = { Text("Handwriting model") },
@@ -470,7 +490,7 @@ class MainActivity : ComponentActivity() {
             }
             HorizontalDivider()
             FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { pickPdfNew.launch(arrayOf("application/pdf")) }) { Text("Import PDF") }
+                TextButton(onClick = { if (pdfAsPicture) startPdfQuestion() else pickPdfNew.launch(arrayOf("application/pdf")) }) { Text("Import PDF") }
                 TextButton(onClick = { training = true }) { Text("Train") }
                 TextButton(onClick = { backup() }) { Text("Backup") }
                 TextButton(onClick = { pickBackup.launch(arrayOf("application/json", "*/*")) }) { Text("Restore") }
@@ -502,7 +522,8 @@ class MainActivity : ComponentActivity() {
                     DropdownMenuItem(text = { Text("Formula") }, onClick = { insert = false; val (p, x, y) = ink.visibleSpot(); editing = ItemEdit(p, jo("id" to newItemId(), "type" to "math", "x" to x.toDouble(), "y" to y.toDouble(), "w" to 0, "src" to "")) })
                     DropdownMenuItem(text = { Text("Table") }, onClick = { insert = false; addTable() })
                     DropdownMenuItem(text = { Text("Picture") }, onClick = { insert = false; pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
-                    DropdownMenuItem(text = { Text("PDF pages") }, onClick = { insert = false; pickPdfHere.launch(arrayOf("application/pdf")) })
+                    DropdownMenuItem(text = { Text("Question from PDF (one page, crop)") }, onClick = { insert = false; startPdfQuestion() })
+                    DropdownMenuItem(text = { Text("PDF pages to write on") }, onClick = { insert = false; pickPdfHere.launch(arrayOf("application/pdf")) })
                     DropdownMenuItem(text = { Text("Voice recording") }, onClick = { insert = false; startRecording() })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("New page after this one") }, onClick = { insert = false; op("addPage", jo("at" to pageNo + 1, "now" to System.currentTimeMillis())); ink.scrollToPage(pageNo + 1) })
@@ -808,6 +829,7 @@ class MainActivity : ComponentActivity() {
                     Text("Text size ${(textScale * 100).toInt()}%", Modifier.padding(top = 12.dp))
                     Slider(textScale, { textScale = it }, valueRange = 0.5f..1.3f, onValueChangeFinished = { render.textScale = textScale; store.set("textScale", textScale); ink.relayoutItems() })
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(autoMath, { autoMath = it; render.autoMath = it; store.set("autoMath", it); ink.relayoutItems() }); Text("  Show formulas inside text as math") }
+                    Row(verticalAlignment = Alignment.CenterVertically) { Switch(pdfAsPicture, { pdfAsPicture = it; store.set("pdfAsPicture", it) }); Text("  Import PDF asks for one page and adds it as a croppable picture") }
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(whitePaper, { whitePaper = it; ink.whitePaper = it; store.set("whitePaper", it); ink.invalidate() }); Text("  White paper") }
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(fingerDraws, { fingerDraws = it; ink.fingerDraws = it; store.set("fingerDraws", it) }); Text("  Finger writes (for phones)") }
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(lock, { lock = it; ink.lock = it; store.set("lock", it) }); Text("  Two fingers to move the page") }

@@ -305,3 +305,16 @@ mod tests {
         assert_eq!(color_num("#1a73e8"), 0x1a73e8 as f32);
     }
 }
+
+#[cfg(test)]
+mod crop_tests {
+    use super::*;
+    #[test]
+    fn crop_roundtrips() {
+        let n = util("newNote", r#"{"now":1,"paper":"lined","size":"letter"}"#);
+        let mut d = Doc::open(n.as_str().unwrap()).unwrap();
+        call(&mut d, "upsertItem", &json!({"page":0,"item":{"id":"a","type":"image","x":96,"y":64,"w":300,"file":"q.png","crop":[0.1,0.2,0.9,0.5]}}));
+        let p = call(&mut d, "page", &json!({"page":0}));
+        assert_eq!(p["items"][0]["crop"][1].as_f64().unwrap() as f32, 0.2);
+    }
+}
