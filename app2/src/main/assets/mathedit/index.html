@@ -74,7 +74,7 @@
   const TABS = {
     '123': [
       K('7','7'),K('8','8'),K('9','9'),K('÷','\\div',1),K('(','\\left(#0\\right)',1),K(')',')',1),K('x','x'),K('y','y'),K('z','z'),K('t','t'),
-      K('4','4'),K('5','5'),K('6','6'),K('×','\\times',1),K('□/□','\\frac{#0}{#?}',1),K('x²','#@^{2}',1),K('xⁿ','#@^{#?}',1),K('xₙ','#@_{#?}',1),K('√','\\sqrt{#0}',1),K('ⁿ√','\\sqrt[#?]{#0}',1),
+      K('4','4'),K('5','5'),K('6','6'),K('×','\\times',1),K('□/□','\\frac{#0}{#?}',1),K('x<sup>2</sup>','#@^{2}',1),K('x<sup>n</sup>','#@^{#?}',1),K('x<sub>n</sub>','#@_{#?}',1),K('√','\\sqrt{#0}',1),K('ⁿ√','\\sqrt[#?]{#0}',1),
       K('1','1'),K('2','2'),K('3','3'),K('−','-',1),K('=','=',1),K('<','<',1),K('>','>',1),K('≤','\\le',1),K('≥','\\ge',1),K('≠','\\ne',1),
       K('0','0'),K('.','.'),K(',',','),K('+','+',1),K('±','\\pm',1),K('π','\\pi'),K('e','e'),K('∞','\\infty'),K('·','\\cdot',1),K('≈','\\approx',1)],
     'f(x)': [
@@ -99,7 +99,7 @@
     keysEl.innerHTML = '';
     for (const k of TABS[name]) {
       const b = document.createElement('button');
-      b.textContent = k.label || GREEK[k.tex.slice(1)] || k.tex;
+      if (k.label && k.label.includes('<')) b.innerHTML = k.label; else b.textContent = k.label || GREEK[k.tex.slice(1)] || k.tex;
       if (k.op) b.className = 'op';
       // pointerdown + preventDefault keeps the cursor in the formula
       b.addEventListener('pointerdown', ev => { ev.preventDefault(); put(k.tex); });
