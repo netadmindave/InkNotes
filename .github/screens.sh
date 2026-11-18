@@ -12,6 +12,6 @@ for d in main train0 train1 train2 review review-edit formula settings; do
   else adb shell am start -W -n com.netadmindave.inknotes2/.MainActivity --es demo "$d"; fi
   sleep 12
   adb exec-out screencap -p > "shots/$d.png"
-  adb logcat -d -v brief '*:W' | grep -iE "inknotes|AndroidRuntime|chromium|console|webview|FATAL" | tail -80 > "shots/$d-log.txt"
+  adb logcat -d -v brief '*:V' | grep -iE "InkMath|AndroidRuntime|FATAL|inknotes2 .*(E|exception)" | tail -80 > "shots/$d-log.txt"
 done
 ls -la shots

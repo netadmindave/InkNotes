@@ -34,7 +34,19 @@ fun MathField(initial: String, modifier: Modifier, onChange: (String) -> Unit) {
     val cb by rememberUpdatedState(onChange)
     AndroidView(factory = { ctx ->
         WebView(ctx).apply {
+            // AndroidView defaults to WRAP_CONTENT; a page sized to the viewport then collapses to nothing
+            layoutParams = android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
             setBackgroundColor(Color.parseColor("#FBF8F1"))
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                    android.util.Log.w("InkMath", "${m.messageLevel()} ${m.message()} @${m.sourceId()}:${m.lineNumber()}"); return true
+                }
+            }
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(v: WebView, url: String) { android.util.Log.w("InkMath", "loaded $url ${v.width}x${v.height}") }
+                override fun onReceivedError(v: WebView, r: android.webkit.WebResourceRequest, e: android.webkit.WebResourceError) { android.util.Log.w("InkMath", "error ${r.url} ${e.description}") }
+            }
+            settings.allowFileAccess = true
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             addJavascriptInterface(object {
