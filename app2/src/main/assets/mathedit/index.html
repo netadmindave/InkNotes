@@ -25,7 +25,7 @@
   #keys button:active { background: #dccfea; }
 </style></head>
 <body>
-<div id="wrap"><math-field id="mf"></math-field></div>
+<div id="wrap"><math-field id="mf" math-virtual-keyboard-policy="manual"></math-field></div>
 <div id="bar">
   <button id="left">◀</button><button id="right">▶</button><button id="del">⌫</button><button id="clear">Clear</button>
   <span style="flex:1"></span><button id="abc">ABC keyboard</button>
@@ -35,6 +35,15 @@
 <script>
   try { MathfieldElement.soundsDirectory = null; MathfieldElement.plonkSound = null; MathfieldElement.keypressSound = null; } catch (e) {}
   const mf = document.getElementById('mf');
+  // never show MathLive's own pop-up keyboard: the keypad below replaces it
+  function noVk() {
+    try {
+      const vk = window.mathVirtualKeyboard;
+      if (vk && !vk.__off) { vk.hide(); vk.show = () => {}; vk.__off = true; }
+      else if (vk) vk.hide();
+    } catch (e) {}
+  }
+  noVk();
   let os = false;
   function sink(on) {
     try {
@@ -55,11 +64,11 @@
       mf.popoverPolicy = 'off'; mf.menuItems = [];
       mf.inlineShortcutTimeout = 0;
     } catch (e) {}
-    sink(false);
+    sink(false); noVk();
   }
   mf.addEventListener('mount', setup, { once: true });
   mf.addEventListener('input', send);
-  mf.addEventListener('focusin', () => sink(os));
+  mf.addEventListener('focusin', () => { sink(os); noVk(); setTimeout(() => sink(os), 30); });
   document.getElementById('left').onclick = () => { mf.executeCommand('moveToPreviousChar'); mf.focus(); };
   document.getElementById('right').onclick = () => { mf.executeCommand('moveToNextChar'); mf.focus(); };
   document.getElementById('del').onclick = () => { mf.executeCommand('deleteBackward'); mf.focus(); send(); };

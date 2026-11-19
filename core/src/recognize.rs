@@ -218,7 +218,14 @@ impl<'a> Layout<'a> {
                 let (big, sm) = if l.w().max(l.h()) > b.w().max(b.h()) { (l, b) } else { (b, l) };
                 let y_ov = big.y1.min(sm.y1) - big.y0.max(sm.y0);
                 let separate = big.w().max(big.h()) > 2.2 * sm.w().max(sm.h()) && y_ov < 0.5 * sm.h();
-                if !separate && (((ov > 0.45 * narrow || center_in) && vgap < 0.3 * h) || dot_over || stacked) {
+                let (stem, bowl) = if l.h() > b.h() { (l, b) } else { (b, l) };
+                let gap = (b.x0 - l.x1).max(l.x0 - b.x1);
+                // beside the stem (not under it), sitting on the same baseline, and the stem is letter-sized
+                let beside = bowl.x1 <= stem.x0 + 0.5 * stem.w().max(2.0) || bowl.x0 >= stem.x1 - 0.5 * stem.w().max(2.0);
+                let d_like = gap <= 0.15 * h && beside && stem.h() > 2.5 * stem.w() && stem.h() > 1.4 * bowl.h() && stem.h() < 2.4 * h
+                    && bowl.y0 > stem.y0 + 0.3 * stem.h() && bowl.y1 < stem.y1 + 0.15 * stem.h() && bowl.y1 > stem.y1 - 0.25 * stem.h()
+                    && bowl.w() > 0.6 * stem.w();
+                if d_like || (!separate && (((ov > 0.45 * narrow || center_in) && vgap < 0.3 * h) || dot_over || stacked)) {
                     let s = &mut self.syms[last];
                     s.strokes.push(st);
                     s.b.union(&b);
@@ -406,8 +413,10 @@ impl<'a, 'b> Emitter<'a, 'b> {
                     let mb = self.b(&nodes[j]);
                     let near = mb.x0 < bb.x0 || if ch == "sum" { mb.cx() < bb.x1 + 0.2 * ref_h } else { mb.x0 < bb.x1 + 0.9 * ref_h };
                     if !near { break; }
-                    if mb.h() < 0.8 * ref_h && mb.y1 < bb.y0 + 0.45 * bb.h() { up.push(nodes[j].clone()); j += 1; continue; }
-                    if mb.h() < 0.8 * ref_h && mb.y0 > bb.y1 - 0.45 * bb.h() { dn.push(nodes[j].clone()); j += 1; continue; }
+                    // limits are small next to the sign (they may be as tall as the other characters)
+                    let small = mb.h() < 0.8 * ref_h || mb.h() < 0.4 * bb.h();
+                    if small && mb.y1 < bb.y0 + 0.45 * bb.h() { up.push(nodes[j].clone()); j += 1; continue; }
+                    if small && mb.y0 > bb.y1 - 0.45 * bb.h() { dn.push(nodes[j].clone()); j += 1; continue; }
                     break;
                 }
                 let mut t = ch.clone();
@@ -863,6 +872,21 @@ mod tests {
         ];
         let r = run(v, "math");
         assert_eq!(r.iter().map(|c| c.src.clone()).collect::<Vec<_>>().join(" | ").replace(" ", ""), "2x+3x^2+4yzxxx10^(16)");
+    }
+
+    #[test]
+    fn integral_with_long_tail_and_limits() {
+        // ∫_0^1 x dx written like the screenshot: tall ∫ whose bottom hooks far left, 0 under the hook, 1 at the top right
+        let v = vec![
+            g("∫", vec![s(&[(675.0, 815.0), (655.0, 812.0), (642.0, 830.0), (645.0, 880.0), (648.0, 930.0), (635.0, 962.0), (605.0, 968.0), (570.0, 968.0)])]),
+            g("1", vec![s(&[(695.0, 790.0), (695.0, 815.0)])]),
+            g("0", vec![s(&[(632.0, 978.0), (622.0, 984.0), (624.0, 998.0), (636.0, 1000.0), (643.0, 990.0), (632.0, 978.0)])]),
+            g("x", vec![s(&[(720.0, 885.0), (750.0, 915.0)]), s(&[(750.0, 885.0), (720.0, 915.0)])]),
+            g("d", vec![s(&[(790.0, 885.0), (775.0, 895.0), (778.0, 912.0), (792.0, 908.0)]), s(&[(800.0, 852.0), (795.0, 915.0)])]),
+            g("x", vec![s(&[(815.0, 885.0), (848.0, 915.0)]), s(&[(848.0, 885.0), (815.0, 915.0)])]),
+        ];
+        let r = run(v, "math");
+        assert_eq!(r.iter().map(|c| c.src.clone()).collect::<Vec<_>>().join(" | ").replace(" ", ""), "int_(0)^(1)xdx");
     }
 
     #[test]

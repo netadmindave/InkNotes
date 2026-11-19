@@ -113,7 +113,7 @@ pub fn add_sample(sym: &str, strokes: &[&Stroke]) -> bool {
     let mut s = SAMPLES.lock().unwrap();
     let v = s.entry(sym.to_string()).or_default();
     v.push(c);
-    if v.len() > 6 { v.remove(0); }
+    if v.len() > 10 { v.remove(0); }
     true
 }
 

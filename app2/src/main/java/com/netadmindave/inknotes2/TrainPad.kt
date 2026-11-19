@@ -25,6 +25,31 @@ class TrainPad(context: Context) : View(context) {
         for (s in strokes) put(JSONObject().put("c", "#000000").put("s", 2.0).put("p", JSONArray().apply { for (q in s) put(JSONArray().put(q[0].toDouble()).put(q[1].toDouble()).put(0.5).put(q[2].toDouble())) }))
     }
 
+    fun undo() { if (strokes.isNotEmpty()) { strokes.removeAt(strokes.size - 1); invalidate(); onChange() } }
+
+    /** Strokes grouped into separate symbols (side by side, gaps between): write a symbol several times, save them all. */
+    fun groups(): List<JSONArray> {
+        val all = json()
+        if (strokes.isEmpty()) return emptyList()
+        val boxes = strokes.map { s -> floatArrayOf(s.minOf { it[0] }, s.minOf { it[1] }, s.maxOf { it[0] }, s.maxOf { it[1] }) }
+        val hs = boxes.map { it[3] - it[1] }.sorted()
+        val gapMin = (hs[hs.size / 2] * 0.25f).coerceAtLeast(8f)
+        val order = boxes.indices.sortedBy { boxes[it][0] }
+        val out = ArrayList<MutableList<Int>>()
+        var right = -1e9f
+        for (i in order) {
+            if (out.isEmpty() || boxes[i][0] > right + gapMin) { out.add(mutableListOf(i)); right = boxes[i][2] }
+            else { out.last().add(i); right = maxOf(right, boxes[i][2]) }
+        }
+        return out.map { g -> JSONArray().apply { g.sorted().forEach { put(all.getJSONObject(it)) } } }
+    }
+
+    private var erasing = false
+    private fun eraseAt(x: Float, y: Float) {
+        val r = 22f
+        if (strokes.removeAll { s -> s.any { q -> Math.hypot((q[0] - x).toDouble(), (q[1] - y).toDouble()) < r } }) onChange()
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
         if (e.pointerCount > 1) return true
@@ -32,12 +57,17 @@ class TrainPad(context: Context) : View(context) {
             MotionEvent.ACTION_DOWN -> {
                 // the training screen scrolls; keep the whole stroke for the pad
                 parent?.requestDisallowInterceptTouchEvent(true)
-                if (strokes.isEmpty()) t0 = e.eventTime; strokes.add(arrayListOf(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))) }
-            MotionEvent.ACTION_MOVE -> strokes.lastOrNull()?.let { s ->
+                // S Pen side button (or the pen's eraser end) erases whole strokes here
+                erasing = e.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER ||
+                    (e.buttonState and (MotionEvent.BUTTON_STYLUS_PRIMARY or MotionEvent.BUTTON_STYLUS_SECONDARY or MotionEvent.BUTTON_SECONDARY)) != 0
+                if (erasing) eraseAt(e.x, e.y)
+                else { if (strokes.isEmpty()) t0 = e.eventTime; strokes.add(arrayListOf(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))) }
+            }
+            MotionEvent.ACTION_MOVE -> if (erasing) eraseAt(e.x, e.y) else strokes.lastOrNull()?.let { s ->
                 for (k in 0 until e.historySize) s.add(floatArrayOf(e.getHistoricalX(k), e.getHistoricalY(k), (e.getHistoricalEventTime(k) - t0).toFloat()))
                 s.add(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { parent?.requestDisallowInterceptTouchEvent(false); onChange() }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { parent?.requestDisallowInterceptTouchEvent(false); erasing = false; onChange() }
         }
         invalidate(); return true
     }
