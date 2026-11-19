@@ -181,13 +181,15 @@ fun MainActivity.SymbolTraining() {
     fun state(s: String): Int { val n = syms[s]?.count ?: 0; return when { n == 0 -> 0; n < 3 || (passes[s] ?: 0) < 1 -> 1; else -> 2 } }
     fun nextIn(g: Int) = SYM_GROUPS[g].second.firstOrNull { state(it) < 2 && it != cur } ?: SYM_GROUPS[g].second.first()
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize()) {
+        Help(store, "symbols") {
         Text("Write the symbol shown at your normal size. You can write it once, or several times in a row with a gap between " +
             "each (e.g. 5 5 5 5 5) — every copy is saved as its own sample. About 5 good samples per symbol is plenty; it keeps your 10 most recent. " +
             "Once a symbol has a couple of samples, each new one is tested first: when InkNotes recognises it correctly it counts toward green (reliable). " +
             "Yellow = learning, grey = not trained yet. Use the S Pen button to erase a stroke, or Undo. " +
             "These samples correct formula conversions when Google's recogniser misreads a symbol (θ read as 0, ∞ as a, + as t …). " +
             "Formula practice (tab 3) also adds samples here automatically when it misreads one of your symbols.", fontSize = 13.sp, color = Muted)
+        }
         FlowRow(Modifier.padding(vertical = 8.dp)) {
             SYM_GROUPS.forEachIndexed { i, (name, list) ->
                 val done = list.count { state(it) == 2 }
@@ -211,7 +213,7 @@ fun MainActivity.SymbolTraining() {
                 if (note.isNotEmpty()) Text(note, fontSize = 13.sp, color = Accent)
             }
         }
-        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(240.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
+        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 120.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { pad.clear() }) { Text("Clear") }
             TextButton(onClick = { pad.undo() }) { Text("Undo") }
@@ -271,7 +273,8 @@ fun MainActivity.Practice(math: Boolean) {
         }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize()) {
+        Help(store, if (math) "formulas" else "text") {
         Text(if (math) "Write the formula shown the way you would in your notes (fractions stacked, exponents raised), then Check. " +
                 "It starts with single symbols and builds up level by level; once every formula in a level has been read correctly you move up. " +
                 "Everything here feeds the Symbols tab: a misread symbol is saved there as a new sample of what it should have been, and " +
@@ -282,6 +285,7 @@ fun MainActivity.Practice(math: Boolean) {
                 "samples — use the Symbols tab for single letters. " +
                 "Words it gets wrong are remembered as corrections and fixed automatically in future conversions. " +
                 "Missed sentences come back later. Keep going until at least 9 of the last 10 are right.", fontSize = 13.sp, color = Muted)
+        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
             LinearProgressIndicator({ if (recent.isEmpty()) 0f else right / minOf(10, recent.size).toFloat() }, Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
                 color = if (sure) Color(0xFF16A34A) else Accent)
@@ -301,15 +305,14 @@ fun MainActivity.Practice(math: Boolean) {
             if (math) TexImage(target, 30f, Modifier.fillMaxWidth())
             else Text(target, fontSize = 22.sp)
         }
-        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().height(if (math) 300.dp else 260.dp).padding(top = 8.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
+        AndroidView(factory = { pad }, modifier = Modifier.fillMaxWidth().weight(1f).heightIn(min = 120.dp).padding(top = 8.dp).clipToBounds().border(1.dp, Color(0xFFD8D0BD)))
         result?.let { (ok, read) ->
-            Column(Modifier.fillMaxWidth().padding(top = 8.dp).background(if (ok) Color(0xFFDCFCE7) else Color(0xFFFEE2E2), RoundedCornerShape(8.dp)).padding(10.dp)) {
-                Text(if (ok) "✓ Read correctly" else "✗ Read differently", fontWeight = FontWeight.Bold)
-                if (math) {
-                    Text("I read:", fontSize = 13.sp)
-                    TexImage(read, 26f, Modifier.fillMaxWidth())
-                    Text(read, fontSize = 12.sp, color = Muted)
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp).background(if (ok) Color(0xFFDCFCE7) else Color(0xFFFEE2E2), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                if (math) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (ok) "✓ Read correctly:  " else "✗ I read:  ", fontWeight = FontWeight.Bold)
+                    TexImage(read, 22f, Modifier.weight(1f).heightIn(max = 70.dp))
                 } else {
+                    Text(if (ok) "✓ Read correctly" else "✗ Read differently", fontWeight = FontWeight.Bold)
                     val tw = words(target); val rw = words(read)
                     Text(buildAnnotatedString {
                         append("I read: ")
@@ -362,4 +365,14 @@ fun MainActivity.Practice(math: Boolean) {
             }) { Text("Check") }
         }
     }
+}
+
+/** Instructions that fold away once read (remembered per tab). */
+@Composable
+fun Help(store: Store, key: String, content: @Composable () -> Unit) {
+    var open by remember { mutableStateOf(!store.pref("helpSeen:$key", false)) }
+    if (open) {
+        content()
+        TextButton(onClick = { open = false; store.set("helpSeen:$key", true) }, contentPadding = PaddingValues(0.dp)) { Text("Hide instructions", fontSize = 13.sp) }
+    } else TextButton(onClick = { open = true }, contentPadding = PaddingValues(0.dp)) { Text("How this works", fontSize = 13.sp) }
 }
