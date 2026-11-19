@@ -36,6 +36,18 @@ fn token(sym: &str) -> String { SYMBOLS.iter().find(|s| s.0 == sym).map(|s| s.1.
 static SAMPLES: Mutex<BTreeMap<String, Vec<Cloud>>> = Mutex::new(BTreeMap::new());
 
 pub fn load(json: &str) { if let Ok(m) = serde_json::from_str(json) { *SAMPLES.lock().unwrap() = m; } }
+/// Add samples from an imported training set ({symbol: [clouds]}), keeping the newest 10 per symbol.
+pub fn merge(json: &str) -> usize {
+    let Ok(m) = serde_json::from_str::<BTreeMap<String, Vec<Cloud>>>(json) else { return 0 };
+    let mut s = SAMPLES.lock().unwrap();
+    let mut n = 0;
+    for (k, v) in m {
+        let e = s.entry(k).or_default();
+        for c in v { if c.len() == N && !e.contains(&c) { e.push(c); n += 1; } }
+        while e.len() > 10 { e.remove(0); }
+    }
+    n
+}
 pub fn save() -> String { serde_json::to_string(&*SAMPLES.lock().unwrap()).unwrap_or_else(|_| "{}".into()) }
 pub fn count(sym: &str) -> usize { SAMPLES.lock().unwrap().get(sym).map(|v| v.len()).unwrap_or(0) }
 pub fn clear(sym: Option<&str>) { let mut s = SAMPLES.lock().unwrap(); match sym { Some(k) => { s.remove(k); } None => s.clear() } }

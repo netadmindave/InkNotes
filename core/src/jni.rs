@@ -263,6 +263,7 @@ pub fn util(op: &str, raw: &str) -> Value {
             json!(recognize::split_lines(&ss))
         }
         "trainLoad" => { dollarp::load(raw); Value::Bool(true) }
+        "trainMerge" => json!(dollarp::merge(raw)),
         "trainSave" => serde_json::from_str(&dollarp::save()).unwrap_or(Value::Null),
         "trainAdd" => { let ss = strokes("strokes"); json!(dollarp::add_sample(&st("sym"), &ss.iter().collect::<Vec<_>>())) }
         "trainCount" => json!(dollarp::SYMBOLS.iter().map(|(s, t)| (s.to_string(), dollarp::count(s), t.to_string())).collect::<Vec<_>>()),

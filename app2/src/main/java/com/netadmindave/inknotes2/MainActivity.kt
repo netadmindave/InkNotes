@@ -413,6 +413,25 @@ class MainActivity : ComponentActivity() {
         if (u != null && f != null) lifecycleScope.launch(Dispatchers.IO) { contentResolver.openOutputStream(u)?.use { o -> f.inputStream().use { it.copyTo(o) } } }
     }
 
+    private var pendingTraining: String? = null
+    private val saveTraining = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { u ->
+        val data = pendingTraining; pendingTraining = null
+        if (u != null && data != null) lifecycleScope.launch(Dispatchers.IO) { contentResolver.openOutputStream(u)?.use { it.write(data.toByteArray()) } }
+    }
+    fun exportTraining() {
+        if (store.trainingCount() == 0) return toast("Nothing recorded yet — do some training first")
+        pendingTraining = store.exportTraining()
+        saveTraining.launch("InkNotes-training-${java.text.SimpleDateFormat("yyyy-MM-dd-HHmm").format(Date())}.json")
+    }
+    private val pickTrainingSet = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u ->
+        if (u == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val msg = withContext(Dispatchers.IO) { try { store.importTrainingSet(contentResolver.openInputStream(u)!!.bufferedReader().readText()) } catch (e: Exception) { "That isn't an InkNotes training set" } }
+            toast(msg)
+        }
+    }
+    fun importTraining() = pickTrainingSet.launch(arrayOf("application/json", "*/*"))
+
     fun backup() { saveNow(); pendingBackup = store.exportBackup(true); saveBackup.launch("InkNotes-backup-${java.text.SimpleDateFormat("yyyy-MM-dd").format(Date())}.json") }
 
     fun pdfFile(): File? = try {

@@ -113,6 +113,61 @@ fun MainActivity.learnFromFormula(strokes: JSONArray, syms: List<Sym>, glyphs: L
 private fun norm(s: String) = s.replace(Regex("\\s+"), "")
 private fun words(s: String) = s.split(Regex("\\s+")).map { it.trim { c -> !c.isLetterOrDigit() } }.filter { it.isNotEmpty() }
 
+/* ---------------- letters from copied words ---------------- */
+
+private val LETTERISH = Regex("[A-Za-z0-9.,!?()=+'-]")
+
+/** Split copied writing into words (big gaps) and letters (strokes that overlap side by side). When the counts match
+ *  the sentence, each letter's strokes become a sample of that letter. Joined-up (cursive) words are skipped. */
+fun MainActivity.learnLettersFromText(strokes: JSONArray, target: String): Pair<Int, Int> {
+    data class B(val i: Int, val x0: Float, val y0: Float, val x1: Float, val y1: Float)
+    val boxes = (0 until strokes.length()).mapNotNull { i ->
+        val p = strokes.getJSONObject(i).optJSONArray("p") ?: return@mapNotNull null
+        if (p.length() == 0) return@mapNotNull null
+        var x0 = Float.MAX_VALUE; var y0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var y1 = -Float.MAX_VALUE
+        for (k in 0 until p.length()) { val q = p.getJSONArray(k); val x = q.getDouble(0).toFloat(); val y = q.getDouble(1).toFloat()
+            x0 = minOf(x0, x); y0 = minOf(y0, y); x1 = maxOf(x1, x); y1 = maxOf(y1, y) }
+        B(i, x0, y0, x1, y1)
+    }.sortedBy { it.x0 }
+    if (boxes.isEmpty()) return 0 to 0
+    val hs = boxes.map { it.y1 - it.y0 }.filter { it > 4f }.sorted()
+    val h = if (hs.isEmpty()) 30f else hs[hs.size / 2]
+    // letters: strokes overlapping horizontally (i + dot, t + cross, = …)
+    val letters = ArrayList<MutableList<B>>()
+    for (b in boxes) {
+        val last = letters.lastOrNull()
+        val right = last?.maxOf { it.x1 } ?: -1e9f
+        val left = last?.minOf { it.x0 } ?: 0f
+        val ov = right - b.x0
+        if (last != null && ov > 0.3f * minOf(b.x1 - b.x0, right - left).coerceAtLeast(1f)) last.add(b) else letters.add(mutableListOf(b))
+    }
+    // words: the larger gaps between letters
+    val words = ArrayList<MutableList<MutableList<B>>>()
+    var prevRight = -1e9f
+    for (l in letters) {
+        val x0 = l.minOf { it.x0 }
+        if (words.isEmpty() || x0 - prevRight > 0.55f * h) words.add(mutableListOf(l)) else words.last().add(l)
+        prevRight = maxOf(prevRight, l.maxOf { it.x1 })
+    }
+    val want = target.split(Regex("\\s+")).filter { it.isNotEmpty() }.map { w -> w.filter { LETTERISH.matches(it.toString()) } }
+    if (words.size != want.size) return 0 to want.size
+    var learned = 0; var usable = 0
+    val shownBy = SYM_GROUPS.flatMap { it.second }.toSet()
+    for ((wi, w) in words.withIndex()) {
+        val chars = want[wi]
+        if (w.size != chars.length) continue            // joined letters or a stray mark: skip this word
+        usable++
+        w.forEachIndexed { li, l ->
+            val ch = chars[li].toString().let { if (it == "-") "−" else it }
+            if (ch !in shownBy) return@forEachIndexed
+            val sub = JSONArray(); l.sortedBy { it.i }.forEach { sub.put(strokes.getJSONObject(it.i)) }
+            Core.util("trainAdd", jo("sym" to ch, "strokes" to sub)); learned++
+        }
+    }
+    if (learned > 0) (Core.utilRaw("trainSave", "null") as? JSONObject)?.let { store.set("hwSamples", it.toString()) }
+    return learned to usable
+}
+
 /* ---------------- text corrections memory ---------------- */
 
 fun MainActivity.corrections(): Map<String, String> = try {
@@ -145,6 +200,8 @@ fun MainActivity.Trainer() {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Teach InkNotes your handwriting", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { exportTraining() }) { Text("Export training data") }
+                    TextButton(onClick = { importTraining() }) { Text("Import training set") }
                     TextButton(onClick = { training = false }) { Text("Close") }
                 }
                 TabRow(tab) {
@@ -232,6 +289,7 @@ fun MainActivity.SymbolTraining() {
                         if (top == cur) ok++ else if (top != null) looked.add(top)
                     }
                     Core.util("trainAdd", jo("sym" to cur, "strokes" to strokes))
+                    store.logTraining(jo("kind" to "symbol", "expected" to cur, "strokes" to strokes))
                     syms = load()
                 }
                 if (ok > 0) { passes = passes + (cur to (passes[cur] ?: 0) + ok); store.set("trainPasses", JSONObject(passes).toString()) }
@@ -355,6 +413,15 @@ fun MainActivity.Practice(math: Boolean) {
                             if (tw.size == rw.size) for (i in tw.indices) if (!tw[i].equals(rw[i], ignoreCase = true)) { rememberCorrection(rw[i], tw[i].lowercase()); notes.add("“${rw[i]}” → “${tw[i]}”") }
                             learned = if (notes.isEmpty()) "Word count differed — leave a clear gap between words." else "Will correct: " + notes.joinToString(", ")
                         }
+                        if (!math) {
+                            val (n, usable) = learnLettersFromText(strokes, target)
+                            if (n > 0) learned = (if (learned.isEmpty()) "" else "$learned · ") + "Learned $n letter sample${if (n == 1) "" else "s"} from $usable word${if (usable == 1) "" else "s"}"
+                            else if (learned.isEmpty() && !ok) learned = "Couldn't split the words into letters — leave a little space between letters and a bigger one between words."
+                        }
+                        store.logTraining(jo("kind" to (if (math) "formula" else "text"), "expected" to target, "read" to read, "ok" to ok,
+                            "glyphs" to (FORMULA_PROMPTS.firstOrNull { it.src == target }?.glyphs?.let { JSONArray(it) }),
+                            "syms" to JSONArray(pieces.flatMap { it.syms }.map { sy -> jo("ch" to sy.ch, "strokes" to JSONArray(sy.strokes)) }),
+                            "pad" to jo("w" to pad.width, "h" to pad.height), "strokes" to strokes))
                         recent = recent + ok
                         if (ok) passed = passed + target
                         result = ok to read

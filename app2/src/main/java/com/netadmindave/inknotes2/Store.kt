@@ -63,6 +63,35 @@ class Store(val ctx: Context) {
 
     fun media(name: String) = File(mediaDir, name)
 
+    /* ---- training log: every practice attempt, kept so it can be exported and turned into a training set ---- */
+    private val trainLog = File(ctx.filesDir, "training-log.jsonl")
+    fun logTraining(rec: JSONObject) { rec.put("t", System.currentTimeMillis()); trainLog.appendText(rec.toString() + "\n") }
+    fun trainingCount(): Int = if (trainLog.exists()) trainLog.readLines().count { it.isNotBlank() } else 0
+    fun exportTraining(): String {
+        val recs = JSONArray()
+        if (trainLog.exists()) trainLog.readLines().filter { it.isNotBlank() }.forEach { l -> try { recs.put(JSONObject(l)) } catch (_: Exception) {} }
+        val dm = ctx.resources.displayMetrics
+        return jo("app" to "InkNotes", "type" to "training-log", "version" to 1, "exported" to System.currentTimeMillis(),
+            "device" to jo("model" to android.os.Build.MODEL, "density" to dm.density.toDouble(), "xdpi" to dm.xdpi.toDouble()),
+            "samples" to (pref("hwSamples", "").takeIf { it.isNotEmpty() }?.let { JSONObject(it) } ?: JSONObject()),
+            "corrections" to JSONObject(pref("corrections", "{}")), "passes" to JSONObject(pref("trainPasses", "{}")),
+            "records" to recs).toString()
+    }
+    fun clearTraining() { trainLog.delete() }
+
+    /** A training set (made from an exported log) → samples, word corrections and reliability counts merged in. */
+    fun importTrainingSet(json: String): String {
+        val o = JSONObject(json)
+        var n = 0
+        o.optJSONObject("samples")?.let { n = (Core.utilRaw("trainMerge", it.toString()) as? Double)?.toInt() ?: 0
+            (Core.utilRaw("trainSave", "null") as? JSONObject)?.let { all -> set("hwSamples", all.toString()) } }
+        var c = 0
+        o.optJSONObject("corrections")?.let { add -> val cur = JSONObject(pref("corrections", "{}")); add.keys().forEach { k -> cur.put(k, add.getString(k)); c++ }; set("corrections", cur.toString()) }
+        o.optJSONObject("passes")?.let { add -> val cur = JSONObject(pref("trainPasses", "{}")); add.keys().forEach { k -> cur.put(k, maxOf(cur.optInt(k), add.optInt(k))) }; set("trainPasses", cur.toString()) }
+        o.optJSONArray("userDict")?.let { a -> userWords = userWords + (0 until a.length()).map { a.getString(it) } }
+        return "Added $n symbol samples and $c word corrections"
+    }
+
     /** InkNotes 1.x or 2.x backup → number of notes imported (existing notes with the same id are kept unless newer). */
     fun importBackup(json: String): Int {
         val o = JSONObject(json)
