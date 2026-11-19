@@ -50,24 +50,51 @@ class TrainPad(context: Context) : View(context) {
         if (strokes.removeAll { s -> s.any { q -> Math.hypot((q[0] - x).toDouble(), (q[1] - y).toDouble()) < r } }) onChange()
     }
 
+    private var penSeen = false          // once a stylus is used, fingers and palms never draw
+    private var activeId = -1
+    private val palmPx = 11f * resources.displayMetrics.xdpi / 25.4f
+
+    private fun isPen(e: MotionEvent, i: Int) = e.getToolType(i).let { it == MotionEvent.TOOL_TYPE_STYLUS || it == MotionEvent.TOOL_TYPE_ERASER }
+
+    override fun onHoverEvent(e: MotionEvent): Boolean { if (isPen(e, 0)) penSeen = true; return super.onHoverEvent(e) }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        if (e.pointerCount > 1) return true
+        val ai = e.actionIndex
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val pen = isPen(e, ai)
+                if (pen) penSeen = true
+                // ignore palms/fingers when writing with a pen, big contacts always, and a second touch while one is active
+                if (activeId != -1 && !pen) return true
+                if (!pen && (penSeen || e.getTouchMajor(ai) > palmPx)) return true
+                if (activeId != -1 && pen) { strokes.lastOrNull()?.let { if (!erasing && it.size < 3) strokes.removeAt(strokes.size - 1) } }
+                activeId = e.getPointerId(ai)
                 // the training screen scrolls; keep the whole stroke for the pad
                 parent?.requestDisallowInterceptTouchEvent(true)
                 // S Pen side button (or the pen's eraser end) erases whole strokes here
-                erasing = e.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER ||
+                erasing = e.getToolType(ai) == MotionEvent.TOOL_TYPE_ERASER ||
                     (e.buttonState and (MotionEvent.BUTTON_STYLUS_PRIMARY or MotionEvent.BUTTON_STYLUS_SECONDARY or MotionEvent.BUTTON_SECONDARY)) != 0
-                if (erasing) eraseAt(e.x, e.y)
-                else { if (strokes.isEmpty()) t0 = e.eventTime; strokes.add(arrayListOf(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))) }
+                val x = e.getX(ai); val y = e.getY(ai)
+                if (erasing) eraseAt(x, y)
+                else { if (strokes.isEmpty()) t0 = e.eventTime; strokes.add(arrayListOf(floatArrayOf(x, y, (e.eventTime - t0).toFloat()))) }
             }
-            MotionEvent.ACTION_MOVE -> if (erasing) eraseAt(e.x, e.y) else strokes.lastOrNull()?.let { s ->
-                for (k in 0 until e.historySize) s.add(floatArrayOf(e.getHistoricalX(k), e.getHistoricalY(k), (e.getHistoricalEventTime(k) - t0).toFloat()))
-                s.add(floatArrayOf(e.x, e.y, (e.eventTime - t0).toFloat()))
+            MotionEvent.ACTION_MOVE -> {
+                val i = e.findPointerIndex(activeId)
+                if (i < 0) return true
+                if (erasing) eraseAt(e.getX(i), e.getY(i)) else strokes.lastOrNull()?.let { s ->
+                    for (k in 0 until e.historySize) s.add(floatArrayOf(e.getHistoricalX(i, k), e.getHistoricalY(i, k), (e.getHistoricalEventTime(k) - t0).toFloat()))
+                    s.add(floatArrayOf(e.getX(i), e.getY(i), (e.eventTime - t0).toFloat()))
+                }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { parent?.requestDisallowInterceptTouchEvent(false); erasing = false; onChange() }
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val id = if (e.actionMasked == MotionEvent.ACTION_CANCEL) activeId else e.getPointerId(ai)
+                if (id == activeId) {
+                    if (e.actionMasked == MotionEvent.ACTION_CANCEL && !erasing) strokes.removeLastOrNull()
+                    activeId = -1; erasing = false
+                    parent?.requestDisallowInterceptTouchEvent(false); onChange()
+                }
+            }
         }
         invalidate(); return true
     }
