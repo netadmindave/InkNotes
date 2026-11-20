@@ -418,7 +418,13 @@ fun MainActivity.Practice(math: Boolean) {
                             }
                         } else if (!ok) {
                             val tw = words(target); val rw = words(read)
-                            if (tw.size == rw.size) for (i in tw.indices) if (!tw[i].equals(rw[i], ignoreCase = true)) { rememberCorrection(rw[i], tw[i].lowercase()); notes.add("“${rw[i]}” → “${tw[i]}”") }
+                            // only remember non-words ("carity" → "cavity"); a real word like "vet" must not be rewritten everywhere
+                            val words = JSONArray(store.userWords.toList())
+                            if (tw.size == rw.size) for (i in tw.indices) if (!tw[i].equals(rw[i], ignoreCase = true)) {
+                                val bad = (Core.util("misspelt", jo("text" to rw[i], "words" to words)) as? JSONArray)?.length() ?: 0
+                                if (bad > 0) { rememberCorrection(rw[i], tw[i].lowercase()); notes.add("“${rw[i]}” → “${tw[i]}”") }
+                                else notes.add("“${rw[i]}” is a real word, so it isn't auto-corrected — write “${tw[i]}” a little more clearly")
+                            }
                             learned = if (notes.isEmpty()) "Word count differed — leave a clear gap between words." else "Will correct: " + notes.joinToString(", ")
                         }
                         if (!math) {

@@ -63,7 +63,7 @@ fn sym_of(syms: &[Value], k: usize) -> usize { syms.iter().position(|s| s["strok
 /// tokens back to the single characters a recogniser would return
 fn tok_char(t: &str) -> String {
     match t { "pi" => "π", "theta" => "θ", "alpha" => "α", "beta" => "β", "gamma" => "γ", "lambda" => "λ", "nu" => "ν", "omega" => "ω", "sigma" => "σ",
-        "phi" => "φ", "psi" => "ψ", "Delta" => "Δ", "oo" => "∞", "int" => "∫", "sum" => "∑", "xx" => "×", "<=" => "≤", "-:" => "÷", other => other }.to_string()
+        "phi" => "φ", "psi" => "ψ", "Delta" => "Δ", "Phi" => "Φ", "oo" => "∞", "int" => "∫", "sum" => "∑", "xx" => "×", "<=" => "≤", "-:" => "÷", other => other }.to_string()
 }
 
 /// Pair recorded symbols with the expected glyphs (same multiset matching the app uses) to get the true characters.

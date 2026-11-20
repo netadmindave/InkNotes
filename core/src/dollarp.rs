@@ -147,9 +147,9 @@ pub fn decide(r: &[(String, String, f32)], current: &str) -> Option<String> {
     let special = !(best.1.len() == 1 && best.1.chars().all(|c| c.is_ascii_alphanumeric()));
     if (special && best.2 < 1.4 && margin > 1.3) || (best.2 < 0.9 && margin > 1.8) || (current == "?" && best.2 < 2.0) { return Some(best.1.clone()); }
     // a mix-up you've had before (π read as T, f as ∫ …): trust your samples when they clearly prefer the other one
-    // (tuned on recorded handwriting: 8 fixes for 1 breakage, vs 2 fixes without it)
+    // (tuned on 106 recorded formulas: 12 fixes for 3 breakages, vs 2 fixes without it)
     let cur_d = r.iter().find(|x| x.1 == current).map(|x| x.2).unwrap_or(9.0);
-    if confused(current, &best.1) && best.2 < 1.4 && cur_d > 1.1 * best.2 { return Some(best.1.clone()); }
+    if confused(current, &best.1) && best.2 < 1.4 && cur_d > 1.2 * best.2 { return Some(best.1.clone()); }
     None
 }
 

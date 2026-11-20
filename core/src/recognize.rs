@@ -192,6 +192,9 @@ impl<'a> Layout<'a> {
         for bar in bars {
             if !rest.contains(&bar) { continue; }
             let bb = self.bs[bar];
+            let crossed = rest.iter().any(|&o| o != bar && { let ob = self.bs[o];
+                ob.y0 < bb.cy() - 0.3 * h && ob.y1 > bb.cy() + 0.3 * h && ob.w() < 0.6 * bb.w() && ob.x1 > bb.x0 - 0.15 * h && ob.x0 < bb.x0 + 0.35 * bb.w() });
+            if crossed { continue; }
             let in_span = |o: usize, bs: &Vec<Rect>| o != bar && bs[o].cx() > bb.x0 - 0.1 * h && (bs[o].cx() < bb.x1 + 0.1 * h || (bs[o].x0 < bb.x1 && bs[o].h() < 0.9 * h));
             let num: Vec<usize> = rest.iter().copied().filter(|&o| in_span(o, &self.bs) && self.bs[o].cy() < bb.cy() && bb.cy() - self.bs[o].y1 < 2.4 * h).collect();
             let den: Vec<usize> = rest.iter().copied().filter(|&o| in_span(o, &self.bs) && self.bs[o].cy() > bb.cy() && self.bs[o].y0 - bb.cy() < 2.4 * h).collect();
@@ -275,7 +278,10 @@ pub fn map_char(t: &str) -> Option<&'static str> {
         "×" | "✕" => "xx", "÷" => "-:", "−" | "–" | "—" => "-", "·" | "•" => "*", "∞" => "oo", "π" => "pi", "Σ" | "∑" => "sum",
         "∫" => "int", "√" => "sqrt", "≤" => "<=", "≥" => ">=", "≠" => "!=", "±" => "+-", "→" => "->", "≈" => "~~",
         "α" => "alpha", "β" => "beta", "γ" => "gamma", "δ" => "delta", "Δ" => "Delta", "θ" => "theta", "λ" => "lambda",
-        "μ" => "mu", "σ" => "sigma", "φ" => "phi", "ω" => "omega", "Ω" => "Omega", "∂" => "del", "∇" => "grad", "°" => "@",
+        "μ" => "mu", "σ" => "sigma", "φ" | "ϕ" => "phi", "ω" => "omega", "Ω" => "Omega", "∂" => "del", "∇" => "grad", "°" => "@",
+        "ν" => "nu", "ψ" => "psi", "Ψ" => "Psi", "ξ" => "xi", "Ξ" => "Xi", "ζ" => "zeta", "η" => "eta", "ι" => "iota", "κ" => "kappa",
+        "ρ" => "rho", "τ" => "tau", "υ" => "upsilon", "χ" => "chi", "ε" | "ϵ" => "epsilon", "Φ" => "Phi", "Π" => "Pi", "Γ" => "Gamma",
+        "Θ" => "Theta", "Λ" => "Lambda", "∏" => "prod", "∮" => "oint", "∝" => "prop", "∈" => "in", "∀" => "AA", "∃" => "EE",
         "′" | "’" | "‘" => "'", "“" | "”" => "\"",
         _ => return None,
     })
@@ -462,7 +468,7 @@ impl<'a, 'b> Emitter<'a, 'b> {
                 // the sign and what follows both sit high, next to the base
                 let nb2 = self.b(&nodes[i + 1]);
                 base.as_ref().map(|bn| { let bb = self.b(bn); nb.y1 < bb.cy() && nb.cy() < ref_cy - 0.35 * ref_h && nb2.cy() < ref_cy - 0.2 * ref_h && nb2.y1 < bb.cy() + 0.15 * bb.h()
-                    && nb2.h() < 1.3 * ref_h && nb2.y1 < ref_cy }).unwrap_or(false)
+                    && nb2.h() < 1.3 * ref_h && nb2.y1 < ref_cy && nb2.h() < 1.6 * bb.h() }).unwrap_or(false)
             };
             if let (Some(bn), false, false, true) = (base.clone(), flat, self.is_op(&n) && !raised_sign, matches!(n, Node::Sym(_))) {
                 let mut bb = self.b(&bn);
@@ -474,11 +480,13 @@ impl<'a, 'b> Emitter<'a, 'b> {
                     bb.y1 = bb.y0 + (y1 - bb.y0).max(4.0);
                 }
                 let (bcy, bh) = (bb.cy(), bb.h());
-                let not_big = nb.h() < 1.3 * bh.max(ref_h * 0.8);
+                let tall_bracket = self.ch(&n).map(|c| ["(", ")", "[", "]", "|"].contains(&c.as_str())).unwrap_or(false) && nb.h() > 0.75 * ref_h;
+                let not_big = nb.h() < 1.6 * bh.max(ref_h * 0.8) && !tall_bracket;
                 let is_sup = raised_sign || (not_big && nb.cy() < bcy - 0.3 * bh && nb.y1 < bcy + 0.15 * bh);
-                let is_sub = not_big && nb.cy() > bcy + 0.3 * bh && nb.y0 > bcy - 0.12 * bh && nb.y1 > bb.y1 + 0.12 * bh
+                let is_sub = not_big && nb.h() < 1.3 * bh.max(ref_h * 0.8) && nb.cy() > bcy + 0.3 * bh && nb.y0 > bcy - 0.12 * bh && nb.y1 > bb.y1 + 0.12 * bh
                     // y, g, p, q, j hang below the line by themselves: only a subscript if they also start low
-                    && !(self.ch(&n).map(|c| ["g", "j", "p", "q", "y"].contains(&c.as_str())).unwrap_or(false) && nb.y0 < bcy + 0.15 * bh);
+                    && !(self.ch(&n).map(|c| ["g", "j", "p", "q", "y"].contains(&c.as_str())).unwrap_or(false)
+                        && nb.y0 < bcy + if self.ch(&n).as_deref() == Some("y") { 0.3 } else { 0.15 } * bh);
                 if is_sup || is_sub {
                     let mut grp = vec![n.clone()];
                     let mut j = i + 1;
@@ -486,7 +494,8 @@ impl<'a, 'b> Emitter<'a, 'b> {
                         let mb = self.b(&nodes[j]);
                         let same = if is_sup { mb.cy() < bcy - 0.2 * bh && mb.y1 < bcy + 0.15 * bh } else { mb.cy() > bcy + 0.2 * bh && mb.y0 > bcy - 0.15 * bh };
                         let lastb = self.b(grp.last().unwrap());
-                        if !same || mb.x0 > lastb.x1 + 0.9 * ref_h { break; }
+                        let op_ok = !self.is_op(&nodes[j]) || if is_sup { mb.y1 < bcy - 0.05 * bh } else { mb.y0 > bcy + 0.05 * bh };
+                        if !same || !op_ok || mb.x0 > lastb.x1 + 1.3 * ref_h { break; }
                         grp.push(nodes[j].clone());
                         j += 1;
                     }

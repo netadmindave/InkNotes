@@ -90,6 +90,7 @@ class Store(val ctx: Context) {
             (Core.utilRaw("confusionsSave", "null") as? JSONObject)?.let { all -> set("confusions", all.toString()) } }
         var c = 0
         o.optJSONObject("corrections")?.let { add -> val cur = JSONObject(pref("corrections", "{}")); add.keys().forEach { k -> cur.put(k, add.getString(k)); c++ }; set("corrections", cur.toString()) }
+        o.optJSONArray("removeCorrections")?.let { rm -> val cur = JSONObject(pref("corrections", "{}")); for (i in 0 until rm.length()) cur.remove(rm.getString(i)); set("corrections", cur.toString()) }
         o.optJSONObject("passes")?.let { add -> val cur = JSONObject(pref("trainPasses", "{}")); add.keys().forEach { k -> cur.put(k, maxOf(cur.optInt(k), add.optInt(k))) }; set("trainPasses", cur.toString()) }
         o.optJSONArray("userDict")?.let { a -> userWords = userWords + (0 until a.length()).map { a.getString(it) } }
         return "Added $n symbol samples and $c word corrections"

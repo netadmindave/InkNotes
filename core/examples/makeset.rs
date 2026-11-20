@@ -12,8 +12,11 @@ fn main() {
     let before: usize = dollarp::SYMBOLS.iter().map(|s| dollarp::count(s.0)).sum();
     let shown = |t: &str| dollarp::SYMBOLS.iter().find(|x| x.1 == t).map(|x| x.0.to_string());
     let (mut added, mut conf, mut skipped) = (0, 0, 0);
-    for r in d["records"].as_array().unwrap() {
-        if r["kind"] != "formula" { continue; }
+    // attempts to leave out (written for a different prompt), and word corrections to drop
+    let skip: Vec<usize> = std::env::var("SKIP").unwrap_or_default().split(',').filter_map(|x| x.parse().ok()).collect();
+    let drop: Vec<String> = std::env::var("DROP").unwrap_or_default().split(',').filter(|x| !x.is_empty()).map(String::from).collect();
+    for (ri, r) in d["records"].as_array().unwrap().iter().enumerate() {
+        if r["kind"] != "formula" || skip.contains(&ri) { continue; }
         let strokes: Vec<Stroke> = serde_json::from_value(r["strokes"].clone()).unwrap();
         let syms = r["syms"].as_array().cloned().unwrap_or_default();
         let glyphs: Vec<String> = r["glyphs"].as_array().map(|x| x.iter().map(|g| g.as_str().unwrap().to_string()).collect()).unwrap_or_default();
@@ -35,12 +38,15 @@ fn main() {
         }
     }
     let after: usize = dollarp::SYMBOLS.iter().map(|s| dollarp::count(s.0)).sum();
+    let mut corr = d["corrections"].clone();
+    if let Some(o) = corr.as_object_mut() { for k in &drop { o.remove(k); } }
     let out = json!({
         "app": "InkNotes", "type": "training-set", "version": 1,
         "made_from": a[1].rsplit('/').next(),
         "samples": serde_json::from_str::<Value>(&dollarp::save()).unwrap(),
         "confusions": serde_json::from_str::<Value>(&dollarp::confusions_save()).unwrap(),
-        "corrections": d["corrections"].clone(),
+        "corrections": corr,
+        "removeCorrections": drop,
         "passes": d["passes"].clone(),
     });
     std::fs::write(&a[2], serde_json::to_string(&out).unwrap()).unwrap();
