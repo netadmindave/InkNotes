@@ -6,3 +6,4 @@ local.properties
 .idea/
 core/target/
 app2/src/main/jniLibs/
+core/tests/data/

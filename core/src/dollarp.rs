@@ -34,6 +34,22 @@ pub const SYMBOLS: &[(&str, &str)] = &[
 fn token(sym: &str) -> String { SYMBOLS.iter().find(|s| s.0 == sym).map(|s| s.1.to_string()).unwrap_or_else(|| sym.to_string()) }
 
 static SAMPLES: Mutex<BTreeMap<String, Vec<Cloud>>> = Mutex::new(BTreeMap::new());
+/// What the recogniser read → what you actually wrote, with counts (learned from training misreads).
+static CONFUSIONS: Mutex<BTreeMap<String, BTreeMap<String, u32>>> = Mutex::new(BTreeMap::new());
+
+pub fn confusions_load(json: &str) { if let Ok(m) = serde_json::from_str(json) { *CONFUSIONS.lock().unwrap() = m; } }
+pub fn confusions_save() -> String { serde_json::to_string(&*CONFUSIONS.lock().unwrap()).unwrap_or_else(|_| "{}".into()) }
+pub fn confusion_add(read: &str, truth: &str) {
+    if read == truth || read.is_empty() || truth.is_empty() { return; }
+    *CONFUSIONS.lock().unwrap().entry(read.to_string()).or_default().entry(truth.to_string()).or_insert(0) += 1;
+}
+pub fn confusions_merge(json: &str) {
+    if let Ok(m) = serde_json::from_str::<BTreeMap<String, BTreeMap<String, u32>>>(json) {
+        let mut c = CONFUSIONS.lock().unwrap();
+        for (r, t) in m { for (k, n) in t { let e = c.entry(r.clone()).or_default().entry(k).or_insert(0); *e = (*e).max(n); } }
+    }
+}
+fn confused(read: &str, truth: &str) -> bool { CONFUSIONS.lock().unwrap().get(read).map(|t| t.contains_key(truth)).unwrap_or(false) }
 
 pub fn load(json: &str) { if let Ok(m) = serde_json::from_str(json) { *SAMPLES.lock().unwrap() = m; } }
 /// Add samples from an imported training set ({symbol: [clouds]}), keeping the newest 10 per symbol.
@@ -110,6 +126,33 @@ fn greedy(a: &Cloud, b: &Cloud) -> f32 {
     (0..a.len().min(b.len())).step_by(step).map(|i| cloud_distance(a, b, i).min(cloud_distance(b, a, i))).fold(f32::MAX, f32::min)
 }
 
+/// Like `classify`, but ignores a template identical to the query (to test honestly on recorded data).
+pub fn classify_leave_out(strokes: &[&Stroke]) -> Vec<(String, String, f32)> {
+    let Some(c) = cloud_from(strokes) else { return vec![] };
+    let s = SAMPLES.lock().unwrap();
+    let mut res: Vec<(String, String, f32)> = s.iter().filter_map(|(sym, l)| {
+        let d = l.iter().map(|t| greedy(&c, t)).filter(|&d| d > 1e-3).fold(f32::MAX, f32::min);
+        if d == f32::MAX { None } else { Some((sym.clone(), token(sym), d)) }
+    }).collect();
+    res.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+    res
+}
+
+/// The override decision for a ranked list (shared by the live path and offline evaluation).
+pub fn decide(r: &[(String, String, f32)], current: &str) -> Option<String> {
+    let best = r.first()?;
+    if best.1 == current { return None; }
+    let second = r.iter().find(|x| x.1 != best.1);
+    let margin = second.map(|s| s.2 / best.2.max(1e-6)).unwrap_or(9.0);
+    let special = !(best.1.len() == 1 && best.1.chars().all(|c| c.is_ascii_alphanumeric()));
+    if (special && best.2 < 1.4 && margin > 1.3) || (best.2 < 0.9 && margin > 1.8) || (current == "?" && best.2 < 2.0) { return Some(best.1.clone()); }
+    // a mix-up you've had before (π read as T, f as ∫ …): trust your samples when they clearly prefer the other one
+    // (tuned on recorded handwriting: 8 fixes for 1 breakage, vs 2 fixes without it)
+    let cur_d = r.iter().find(|x| x.1 == current).map(|x| x.2).unwrap_or(9.0);
+    if confused(current, &best.1) && best.2 < 1.4 && cur_d > 1.1 * best.2 { return Some(best.1.clone()); }
+    None
+}
+
 /// Best matches: (symbol, token, distance), one per symbol, best first.
 pub fn classify(strokes: &[&Stroke]) -> Vec<(String, String, f32)> {
     let Some(c) = cloud_from(strokes) else { return vec![] };
@@ -133,13 +176,7 @@ pub fn add_sample(sym: &str, strokes: &[&Stroke]) -> bool {
 /// Matches score ~0.3–0.7, different symbols ~1.5+; letters/digits need a clearer win.
 pub fn override_for(strokes: &[&Stroke], current: &str) -> Option<String> {
     if total() == 0 { return None; }
-    let r = classify(strokes);
-    let best = r.first()?;
-    if best.1 == current { return None; }
-    let second = r.iter().find(|x| x.1 != best.1);
-    let margin = second.map(|s| s.2 / best.2.max(1e-6)).unwrap_or(9.0);
-    let special = !(best.1.len() == 1 && best.1.chars().all(|c| c.is_ascii_alphanumeric()));
-    if (special && best.2 < 1.4 && margin > 1.3) || (best.2 < 0.9 && margin > 1.8) || (current == "?" && best.2 < 2.0) { Some(best.1.clone()) } else { None }
+    decide(&classify(strokes), current)
 }
 
 #[cfg(test)]
@@ -169,5 +206,18 @@ mod tests {
         load(&back);
         assert_eq!(count("π"), 3);
         clear(None);
+    }
+}
+
+#[cfg(test)]
+mod confusion_tests {
+    use super::*;
+    #[test]
+    fn learned_confusion_allows_override() {
+        let r = vec![("π".to_string(), "pi".to_string(), 1.2f32), ("T".to_string(), "T".to_string(), 1.5)];
+        assert_eq!(decide(&r, "T"), None);
+        confusion_add("T", "pi");
+        assert_eq!(decide(&r, "T").as_deref(), Some("pi"));
+        assert!(confusions_save().contains("pi"));
     }
 }

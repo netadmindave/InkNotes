@@ -75,6 +75,7 @@ class Store(val ctx: Context) {
             "device" to jo("model" to android.os.Build.MODEL, "density" to dm.density.toDouble(), "xdpi" to dm.xdpi.toDouble()),
             "samples" to (pref("hwSamples", "").takeIf { it.isNotEmpty() }?.let { JSONObject(it) } ?: JSONObject()),
             "corrections" to JSONObject(pref("corrections", "{}")), "passes" to JSONObject(pref("trainPasses", "{}")),
+            "confusions" to JSONObject(pref("confusions", "{}")),
             "records" to recs).toString()
     }
     fun clearTraining() { trainLog.delete() }
@@ -85,6 +86,8 @@ class Store(val ctx: Context) {
         var n = 0
         o.optJSONObject("samples")?.let { n = (Core.utilRaw("trainMerge", it.toString()) as? Double)?.toInt() ?: 0
             (Core.utilRaw("trainSave", "null") as? JSONObject)?.let { all -> set("hwSamples", all.toString()) } }
+        o.optJSONObject("confusions")?.let { Core.utilRaw("confusionsMerge", it.toString())
+            (Core.utilRaw("confusionsSave", "null") as? JSONObject)?.let { all -> set("confusions", all.toString()) } }
         var c = 0
         o.optJSONObject("corrections")?.let { add -> val cur = JSONObject(pref("corrections", "{}")); add.keys().forEach { k -> cur.put(k, add.getString(k)); c++ }; set("corrections", cur.toString()) }
         o.optJSONObject("passes")?.let { add -> val cur = JSONObject(pref("trainPasses", "{}")); add.keys().forEach { k -> cur.put(k, maxOf(cur.optInt(k), add.optInt(k))) }; set("trainPasses", cur.toString()) }

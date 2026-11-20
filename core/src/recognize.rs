@@ -19,6 +19,8 @@ fn median(mut v: Vec<f32>) -> f32 {
     v[v.len() / 2]
 }
 fn is_flat(b: &Rect, h: f32) -> bool { b.w() >= 0.35 * h && b.h() <= 0.32 * b.w() && b.h() <= 0.45 * h }
+/// A bar of =, ≤, ≥, ±, F, E (hand-drawn bars can tilt or thicken a little).
+fn is_bar(b: &Rect, h: f32) -> bool { b.w() >= 0.3 * h && b.h() <= 0.45 * b.w() && b.h() <= 0.4 * h }
 fn is_dot(b: &Rect, h: f32) -> bool { b.w() < 0.22 * h && b.h() < 0.22 * h }
 
 pub fn char_height(strokes: &[Stroke]) -> f32 {
@@ -79,28 +81,35 @@ pub fn split_lines(strokes: &[Stroke]) -> Vec<Vec<usize>> {
         }
         if !merged { break; }
     }
-    // a short raised group (exponent like ¹⁶) just above the end of a line belongs to that line
+    // a short group just above or below a line — an exponent or subscript written full size, or the limits
+    // of a ∑ / ∫ — belongs to that line when it sits next to one of its symbols
     loop {
         let mut merged = false;
-        for li in 0..lines.len() {
-            if lines[li].items.len() > 4 { continue; }
+        'next: for li in 0..lines.len() {
+            if lines[li].items.len() > 5 { continue; }
             let (ax0, ax1) = lines[li].items.iter().fold((f32::MAX, f32::MIN), |(a, b), &i| (a.min(bs[i].x0), b.max(bs[i].x1)));
-            let ah = lines[li].y1 - lines[li].y0;
-            let target = (0..lines.len()).find(|&mi| {
-                if mi == li { return false; }
+            let (ay0, ay1) = (lines[li].y0, lines[li].y1);
+            for mi in 0..lines.len() {
+                if mi == li { continue; }
                 let m = &lines[mi];
-                let (mx0, mx1) = m.items.iter().fold((f32::MAX, f32::MIN), |(a, b), &i| (a.min(bs[i].x0), b.max(bs[i].x1)));
-                let gap = m.y0 - lines[li].y1;
-                gap < 0.3 * h && lines[li].y1 < (m.y0 + m.y1) / 2.0 && ah < 0.8 * (m.y1 - m.y0)
-                    && ax0 > mx0 && ax0 < mx1 + 1.5 * h && ax1 < mx1 + 4.0 * h
-            });
-            if let Some(mi) = target {
-                let l = lines.remove(li);
-                let mi = if mi > li { mi - 1 } else { mi };
-                let m = &mut lines[mi];
-                m.items.extend(l.items); m.y0 = m.y0.min(l.y0); m.y1 = m.y1.max(l.y1);
-                merged = true;
-                break;
+                let above = ay1 < (m.y0 + m.y1) / 2.0 && ay0 < m.y0;
+                let below = ay0 > (m.y0 + m.y1) / 2.0 && ay1 > m.y1;
+                if !above && !below { continue; }
+                let hit = m.items.iter().any(|&o| {
+                    let ob = bs[o];
+                    let gap = if above { ob.y0 - ay1 } else { ay0 - ob.y1 };
+                    let big = ob.h() > 1.8 * h;   // ∑ / ∫: limits sit further away, over or under the sign
+                    if big { gap < 0.9 * h && ax0 < ob.x1 + 1.0 * h && ax1 > ob.x0 - 0.6 * h }
+                    else { gap < 0.5 * h.max(ob.h()) && ax0 > ob.x0 + 0.3 * ob.w() && ax0 < ob.x1 + 1.2 * h }
+                });
+                if hit {
+                    let l = lines.remove(li);
+                    let mi = if mi > li { mi - 1 } else { mi };
+                    let m = &mut lines[mi];
+                    m.items.extend(l.items); m.y0 = m.y0.min(l.y0); m.y1 = m.y1.max(l.y1);
+                    merged = true;
+                    break 'next;
+                }
             }
         }
         if !merged { break; }
@@ -113,7 +122,7 @@ pub fn split_lines(strokes: &[Stroke]) -> Vec<Vec<usize>> {
                 let bb = bs[bar];
                 if !is_flat(&bb, h) || bb.w() < 0.9 * h { continue; }
                 let touches = |m: &L, above: bool| m.items.iter().any(|&o| o != bar && bs[o].cx() > bb.x0 - 0.1 * h && bs[o].cx() < bb.x1 + 0.1 * h &&
-                    if above { bb.cy() - bs[o].y1 < 0.9 * h && bs[o].cy() < bb.cy() } else { bs[o].y0 - bb.cy() < 0.9 * h && bs[o].cy() > bb.cy() });
+                    if above { bb.cy() - bs[o].y1 < 1.4 * h && bs[o].cy() < bb.cy() } else { bs[o].y0 - bb.cy() < 1.4 * h && bs[o].cy() > bb.cy() });
                 let up = lines.iter().position(|m| touches(m, true));
                 let dn = lines.iter().position(|m| touches(m, false));
                 if let (Some(u), Some(d)) = (up, dn) {
@@ -155,18 +164,21 @@ impl<'a> Layout<'a> {
     fn radical_contents(&self, st: usize, others: &[usize]) -> Option<Vec<usize>> {
         let b = self.bs[st];
         let h = self.h;
-        if b.w() < 0.8 * h || b.h() < 0.6 * h || b.w() < 0.75 * b.h() { return None; }
+        if b.w() < 1.1 * h || b.h() < 0.6 * h || b.w() < 0.75 * b.h() { return None; }
         let pts = &self.strokes[st].p;
         let right: Vec<_> = pts.iter().filter(|q| q.x > b.x0 + 0.55 * b.w()).collect();
         if right.len() < 2 { return None; }
         let rr = Rect::of_points(right.iter().map(|q| (q.x, q.y)));
-        if rr.h() > 0.15 * b.h() + 3.0 || rr.y0 - b.y0 > 0.15 * b.h() + 3.0 || rr.w() < 0.3 * b.w() { return None; }
+        let mut ys: Vec<f32> = right.iter().map(|q| q.y).collect();
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let spread = ys[(ys.len() * 85 / 100).min(ys.len() - 1)] - ys[ys.len() * 15 / 100];   // most of the overline, not its end hook
+        if spread > 0.15 * b.h() + 3.0 || ys[ys.len() / 2] - b.y0 > 0.2 * b.h() + 3.0 || rr.w() < 0.3 * b.w() { return None; }
         let (li, low) = pts.iter().enumerate().fold((0, pts[0]), |acc, (i, q)| if q.y > acc.1.y { (i, *q) } else { acc });
         if low.x > b.x0 + 0.5 * b.w() { return None; }
         if (li as f32) < 0.08 * pts.len() as f32 || (li as f32) > 0.9 * pts.len() as f32 { return None; }
         let inside: Vec<usize> = others.iter().copied().filter(|&o| {
             let ob = self.bs[o];
-            o != st && ob.x0 > b.x0 + 0.2 * b.w() && ob.cx() > b.x0 + 0.25 * b.w() && ob.cx() < b.x1 + 0.1 * h && ob.cy() > b.y0 && ob.cy() < b.y1 + 0.1 * h
+            o != st && ob.x0 > b.x0 + 0.2 * b.w() && ob.cx() > b.x0 + 0.25 * b.w() && ob.y0 > b.y0 + 0.08 * b.h() && ob.cx() < b.x1 + 0.1 * h && ob.cy() > b.y0 && ob.cy() < b.y1 + 0.1 * h
         }).collect();
         if inside.is_empty() { None } else { Some(inside) }
     }
@@ -180,7 +192,7 @@ impl<'a> Layout<'a> {
         for bar in bars {
             if !rest.contains(&bar) { continue; }
             let bb = self.bs[bar];
-            let in_span = |o: usize, bs: &Vec<Rect>| o != bar && bs[o].cx() > bb.x0 - 0.1 * h && bs[o].cx() < bb.x1 + 0.1 * h;
+            let in_span = |o: usize, bs: &Vec<Rect>| o != bar && bs[o].cx() > bb.x0 - 0.1 * h && (bs[o].cx() < bb.x1 + 0.1 * h || (bs[o].x0 < bb.x1 && bs[o].h() < 0.9 * h));
             let num: Vec<usize> = rest.iter().copied().filter(|&o| in_span(o, &self.bs) && self.bs[o].cy() < bb.cy() && bb.cy() - self.bs[o].y1 < 2.4 * h).collect();
             let den: Vec<usize> = rest.iter().copied().filter(|&o| in_span(o, &self.bs) && self.bs[o].cy() > bb.cy() && self.bs[o].y0 - bb.cy() < 2.4 * h).collect();
             if num.is_empty() || den.is_empty() { continue; }
@@ -222,10 +234,25 @@ impl<'a> Layout<'a> {
                 let gap = (b.x0 - l.x1).max(l.x0 - b.x1);
                 // beside the stem (not under it), sitting on the same baseline, and the stem is letter-sized
                 let beside = bowl.x1 <= stem.x0 + 0.5 * stem.w().max(2.0) || bowl.x0 >= stem.x1 - 0.5 * stem.w().max(2.0);
-                let d_like = gap <= 0.15 * h && beside && stem.h() > 2.5 * stem.w() && stem.h() > 1.4 * bowl.h() && stem.h() < 2.4 * h
-                    && bowl.y0 > stem.y0 + 0.3 * stem.h() && bowl.y1 < stem.y1 + 0.15 * stem.h() && bowl.y1 > stem.y1 - 0.25 * stem.h()
-                    && bowl.w() > 0.6 * stem.w();
-                if d_like || (!separate && (((ov > 0.45 * narrow || center_in) && vgap < 0.3 * h) || dot_over || stacked)) {
+                let thin_stem = stem.h() > 2.5 * stem.w() && stem.h() > 1.4 * bowl.h() && stem.h() < 2.4 * h;
+                let low_bowl = bowl.y0 > stem.y0 + 0.3 * stem.h() && bowl.y1 < stem.y1 + 0.15 * stem.h() && bowl.y1 > stem.y1 - 0.25 * stem.h();
+                let high_bowl = bowl.y0 < stem.y0 + 0.25 * stem.h() && bowl.y1 < stem.y0 + 0.75 * stem.h() && bowl.y1 > stem.y0;
+                let d_like = gap <= 0.15 * h && beside && thin_stem && (low_bowl || (high_bowl && !is_bar(&bowl, h))) && bowl.w() > 0.6 * stem.w();
+                // bars starting at a stem: F, E
+                let fe = thin_stem && is_bar(&bowl, h) && bowl.x0 > stem.x0 - 0.25 * h && bowl.x0 < stem.x1 + 0.2 * h
+                    && bowl.cy() > stem.y0 - 0.15 * h && bowl.cy() < stem.y1 && bowl.x1 > stem.x1;
+                // a short flat stroke resting on top of a character (the flag of a 5)
+                let (flag, body) = if is_bar(&b, h) && !is_bar(&l, h) { (b, l) } else { (l, b) };
+                let flag_top = is_bar(&flag, h) && !is_bar(&body, h) && flag.w() < 2.2 * body.w().max(0.5 * h)
+                    && flag.x1.min(body.x1) - flag.x0.max(body.x0) > 0.0 && flag.y1 < body.y0 + 0.2 * body.h() && body.y0 - flag.y1 < 0.15 * h
+                    && flag.x1 > body.cx();
+                // a bar under or over a character: ≤ ≥ ±
+                let (bar, glyph) = if is_bar(&b, h) && !is_bar(&l, h) { (b, l) } else { (l, b) };
+                let under = is_bar(&bar, h) && !is_bar(&glyph, h) && ov > 0.6 * narrow && vgap < 0.5 * h && bar.w() > 0.6 * glyph.w()
+                    && (bar.cy() > glyph.y1 || bar.cy() < glyph.y0);
+                let similar = b.w().max(l.w()) < 1.7 * b.w().min(l.w());
+                let stacked = stacked || (is_bar(&b, h) && is_bar(&l, h) && ov > 0.5 * narrow && (vgap < 0.6 * h || (similar && ov > 0.6 * narrow && vgap < 1.0 * h)));
+                if d_like || fe || flag_top || under || (!separate && (((ov > 0.45 * narrow || center_in) && vgap < 0.3 * h) || dot_over || stacked)) {
                     let s = &mut self.syms[last];
                     s.strokes.push(st);
                     s.b.union(&b);
@@ -306,7 +333,9 @@ fn refine(l: &Layout, pick: &str, s: &Sym) -> String {
     if s.strokes.len() == 1 && is_flat(&b, h) { return "-".into(); }
     let mut pick = pick.to_string();
     if pick == "_" { pick = "-".into(); }
-    if b.h() > 1.7 * h && ["S", "s", "f", "ʃ", "int"].contains(&pick.as_str()) && b.w() < 0.7 * b.h() { pick = "int".into(); }
+    let crossed = s.strokes.len() >= 2 && s.strokes.iter().any(|&i| is_bar(&l.bs[i], h) && l.bs[i].cy() > b.y0 + 0.2 * b.h() && l.bs[i].cy() < b.y1 - 0.2 * b.h());
+    if crossed && ["int", "S", "s", "ʃ", "∫"].contains(&pick.as_str()) { pick = "f".into(); }
+    else if b.h() > 1.7 * h && ["S", "s", "f", "ʃ", "int"].contains(&pick.as_str()) && b.w() < 0.7 * b.h() { pick = "int".into(); }
     else if b.h() > 1.7 * h && ["E", "Σ", "sum"].contains(&pick.as_str()) { pick = "sum".into(); }
     if pick.len() == 1 && "CKOPSUVWXZ".contains(pick.as_str()) && b.h() < 0.72 * h { pick = pick.to_lowercase(); }
     pick
@@ -315,7 +344,7 @@ fn refine(l: &Layout, pick: &str, s: &Sym) -> String {
 fn choose(l: &Layout, cands: &[String], s: &Sym) -> String {
     let h = l.h;
     if s.strokes.len() == 1 && is_flat(&s.b, h) { return "-".into(); }
-    if s.strokes.len() == 2 && s.strokes.iter().all(|&i| is_flat(&l.bs[i], h)) { return "=".into(); }
+    if s.strokes.len() == 2 && s.strokes.iter().all(|&i| is_bar(&l.bs[i], h)) { return "=".into(); }
     if s.strokes.len() == 1 && is_dot(&s.b, h) { return ".".into(); }
     let mut pick: Option<String> = None;
     for c in cands {
@@ -353,7 +382,9 @@ fn join_tokens(parts: &[String]) -> String {
             || OPS.contains(&p.as_str())
             || ["xx", "int", "sum", "oo", "pi", "sqrt"].iter().any(|k| p.starts_with(k))
             || (["xx", "int", "sum", "oo", "pi", ")", "-", "+", "="].iter().any(|k| s.ends_with(k)) && starts_alnum));
-        if need { s.push(' '); }
+        // 1.2 stays together
+        let decimal = (p == "." && s.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false)) || (s.ends_with('.') && p.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) && s.chars().rev().nth(1).map(|c| c.is_ascii_digit()).unwrap_or(false));
+        if need && !decimal { s.push(' '); }
         s.push_str(p);
         prev = p.clone();
     }
@@ -427,7 +458,13 @@ impl<'a, 'b> Emitter<'a, 'b> {
                 i = j;
                 continue;
             }
-            if let (Some(bn), false, false, true) = (base.clone(), flat, self.is_op(&n), matches!(n, Node::Sym(_))) {
+            let raised_sign = self.ch(&n).map(|c| c == "-" || c == "+").unwrap_or(false) && i + 1 < nodes.len() && !self.is_op(&nodes[i + 1]) && {
+                // the sign and what follows both sit high, next to the base
+                let nb2 = self.b(&nodes[i + 1]);
+                base.as_ref().map(|bn| { let bb = self.b(bn); nb.y1 < bb.cy() && nb.cy() < ref_cy - 0.35 * ref_h && nb2.cy() < ref_cy - 0.2 * ref_h && nb2.y1 < bb.cy() + 0.15 * bb.h()
+                    && nb2.h() < 1.3 * ref_h && nb2.y1 < ref_cy }).unwrap_or(false)
+            };
+            if let (Some(bn), false, false, true) = (base.clone(), flat, self.is_op(&n) && !raised_sign, matches!(n, Node::Sym(_))) {
                 let mut bb = self.b(&bn);
                 if bb.h() <= 0.4 * ref_h { bb = Rect { x0: bb.x0, x1: bb.x1, y0: ref_cy - ref_h / 2.0, y1: ref_cy + ref_h / 2.0 }; }
                 let bch = self.ch(&bn).unwrap_or_default();
@@ -438,7 +475,7 @@ impl<'a, 'b> Emitter<'a, 'b> {
                 }
                 let (bcy, bh) = (bb.cy(), bb.h());
                 let not_big = nb.h() < 1.3 * bh.max(ref_h * 0.8);
-                let is_sup = not_big && nb.cy() < bcy - 0.3 * bh && nb.y1 < bcy + 0.15 * bh;
+                let is_sup = raised_sign || (not_big && nb.cy() < bcy - 0.3 * bh && nb.y1 < bcy + 0.15 * bh);
                 let is_sub = not_big && nb.cy() > bcy + 0.3 * bh && nb.y0 > bcy - 0.12 * bh && nb.y1 > bb.y1 + 0.12 * bh
                     // y, g, p, q, j hang below the line by themselves: only a subscript if they also start low
                     && !(self.ch(&n).map(|c| ["g", "j", "p", "q", "y"].contains(&c.as_str())).unwrap_or(false) && nb.y0 < bcy + 0.15 * bh);
@@ -885,7 +922,9 @@ mod tests {
             g("d", vec![s(&[(790.0, 885.0), (775.0, 895.0), (778.0, 912.0), (792.0, 908.0)]), s(&[(800.0, 852.0), (795.0, 915.0)])]),
             g("x", vec![s(&[(815.0, 885.0), (848.0, 915.0)]), s(&[(848.0, 885.0), (815.0, 915.0)])]),
         ];
+        let v2: Vec<Glyph> = v.iter().map(|g| Glyph { label: g.label, strokes: g.strokes.clone() }).collect();
         let r = run(v, "math");
+        if std::env::var("DBG").is_ok() { let st: Vec<Stroke> = v2.iter().flat_map(|g| g.strokes.clone()).collect(); eprintln!("h={} lines={:?}", char_height(&st), split_lines(&st)); for (k,x) in st.iter().enumerate() { let b=x.bounds(); eprintln!("s{k} {:?}", (b.x0,b.y0,b.w(),b.h())); } }
         assert_eq!(r.iter().map(|c| c.src.clone()).collect::<Vec<_>>().join(" | ").replace(" ", ""), "int_(0)^(1)xdx");
     }
 

@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
         try { Class.forName("ru.noties.jlatexmath.JLatexMathAndroid").getMethod("init", android.content.Context::class.java).invoke(null, this) } catch (_: Throwable) {}
         loadPrefs()
         store.pref("hwSamples", "").takeIf { it.isNotEmpty() }?.let { Core.utilRaw("trainLoad", it) }
+        store.pref("confusions", "").takeIf { it.isNotEmpty() }?.let { Core.utilRaw("confusionsLoad", it) }
         wireInk()
         lifecycleScope.launch { Recognizer.init() }
         refreshList()

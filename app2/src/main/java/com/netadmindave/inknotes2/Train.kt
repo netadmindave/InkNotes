@@ -98,8 +98,11 @@ fun MainActivity.learnFromFormula(strokes: JSONArray, syms: List<Sym>, glyphs: L
             val shown = byToken[remaining[i]] ?: remaining[i]
             val sub = JSONArray(); sy.strokes.forEach { k -> strokes.optJSONObject(k)?.let { sub.put(it) } }
             if (sub.length() > 0) { Core.util("trainAdd", jo("sym" to shown, "strokes" to sub)); learned.add("$shown (read as ${sy.ch})") }
+            // remember the mix-up: next time your samples may correct it
+            Core.util("confusionAdd", jo("read" to sy.ch, "truth" to remaining[i]))
         }
         (Core.utilRaw("trainSave", "null") as? JSONObject)?.let { store.set("hwSamples", it.toString()) }
+        (Core.utilRaw("confusionsSave", "null") as? JSONObject)?.let { store.set("confusions", it.toString()) }
     }
     // symbols read correctly count toward "reliable" on the Symbols tab
     if (right.isNotEmpty()) {
@@ -110,7 +113,12 @@ fun MainActivity.learnFromFormula(strokes: JSONArray, syms: List<Sym>, glyphs: L
     return learned to right
 }
 
-private fun norm(s: String) = s.replace(Regex("\\s+"), "")
+private fun norm(s: String): String {
+    var t = s.replace(Regex("\\s+"), "")
+    val single = Regex("\\(([^()+\\-=*/,]+)\\)")
+    while (true) { val n = single.replace(t, "$1"); if (n == t) break; t = n }
+    return t
+}
 private fun words(s: String) = s.split(Regex("\\s+")).map { it.trim { c -> !c.isLetterOrDigit() } }.filter { it.isNotEmpty() }
 
 /* ---------------- letters from copied words ---------------- */

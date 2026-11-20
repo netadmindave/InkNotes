@@ -264,6 +264,10 @@ pub fn util(op: &str, raw: &str) -> Value {
         }
         "trainLoad" => { dollarp::load(raw); Value::Bool(true) }
         "trainMerge" => json!(dollarp::merge(raw)),
+        "confusionsLoad" => { dollarp::confusions_load(raw); Value::Bool(true) }
+        "confusionsMerge" => { dollarp::confusions_merge(raw); Value::Bool(true) }
+        "confusionsSave" => serde_json::from_str(&dollarp::confusions_save()).unwrap_or(Value::Null),
+        "confusionAdd" => { dollarp::confusion_add(&st("read"), &st("truth")); Value::Bool(true) }
         "trainSave" => serde_json::from_str(&dollarp::save()).unwrap_or(Value::Null),
         "trainAdd" => { let ss = strokes("strokes"); json!(dollarp::add_sample(&st("sym"), &ss.iter().collect::<Vec<_>>())) }
         "trainCount" => json!(dollarp::SYMBOLS.iter().map(|(s, t)| (s.to_string(), dollarp::count(s), t.to_string())).collect::<Vec<_>>()),
