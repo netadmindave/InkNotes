@@ -20,6 +20,15 @@ fn median(mut v: Vec<f32>) -> f32 {
 }
 fn is_flat(b: &Rect, h: f32) -> bool { b.w() >= 0.35 * h && b.h() <= 0.32 * b.w() && b.h() <= 0.45 * h }
 /// A bar of =, ≤, ≥, ±, F, E (hand-drawn bars can tilt or thicken a little).
+/// a short quick dash: may hook or slant at the ends, so its box is taller than a ruled bar's
+fn is_dash(b: &Rect, h: f32) -> bool { b.w() >= 0.3 * h && b.h() <= 0.65 * b.w() && b.h() <= 0.4 * h }
+/// two dashes one over the other: =
+fn dash_pair(a: &Rect, b: &Rect, h: f32) -> bool {
+    let ov = a.x1.min(b.x1) - a.x0.max(b.x0);
+    let narrow = a.w().min(b.w()).max(1.0);
+    let vgap = (b.y0 - a.y1).max(a.y0 - b.y1);
+    is_dash(a, h) && is_dash(b, h) && ov > 0.3 * narrow && vgap > -0.2 * a.h().min(b.h()) && vgap < 0.8 * h && a.w().max(b.w()) < 1.7 * narrow
+}
 fn is_bar(b: &Rect, h: f32) -> bool { b.w() >= 0.3 * h && b.h() <= 0.45 * b.w() && b.h() <= 0.4 * h }
 fn is_dot(b: &Rect, h: f32) -> bool { b.w() < 0.22 * h && b.h() < 0.22 * h }
 
@@ -242,8 +251,10 @@ impl<'a> Layout<'a> {
                 let high_bowl = bowl.y0 < stem.y0 + 0.25 * stem.h() && bowl.y1 < stem.y0 + 0.75 * stem.h() && bowl.y1 > stem.y0;
                 let d_like = gap <= 0.15 * h && beside && thin_stem && (low_bowl || (high_bowl && !is_bar(&bowl, h))) && bowl.w() > 0.6 * stem.w();
                 // bars starting at a stem: F, E
-                let fe = thin_stem && is_bar(&bowl, h) && bowl.x0 > stem.x0 - 0.25 * h && bowl.x0 < stem.x1 + 0.2 * h
-                    && bowl.cy() > stem.y0 - 0.15 * h && bowl.cy() < stem.y1 && bowl.x1 > stem.x1;
+                let tall_stem = stem.h() > 2.5 * stem.w() && stem.h() > 1.4 * bowl.h() && stem.h() < 3.5 * h;
+                let fe_bar = is_bar(&bowl, h) || (bowl.h() <= 0.65 * bowl.w() && bowl.h() < 0.35 * stem.h() && bowl.w() >= 0.3 * h);
+                let fe = tall_stem && fe_bar && bowl.x0 > stem.x0 - 0.25 * h && bowl.x0 < stem.x1 + 0.2 * h
+                    && bowl.cy() > stem.y0 - (0.15 * h).max(0.15 * stem.h()) && bowl.y1 > stem.y0 && bowl.cy() < stem.y1 && bowl.x1 > stem.x1;
                 // a short flat stroke resting on top of a character (the flag of a 5)
                 let (flag, body) = if is_bar(&b, h) && !is_bar(&l, h) { (b, l) } else { (l, b) };
                 let flag_top = is_bar(&flag, h) && !is_bar(&body, h) && flag.w() < 2.2 * body.w().max(0.5 * h)
@@ -255,7 +266,7 @@ impl<'a> Layout<'a> {
                     && (bar.cy() > glyph.y1 || bar.cy() < glyph.y0);
                 let similar = b.w().max(l.w()) < 1.7 * b.w().min(l.w());
                 let stacked = stacked || (is_bar(&b, h) && is_bar(&l, h) && ov > 0.5 * narrow && (vgap < 0.6 * h || (similar && ov > 0.6 * narrow && vgap < 1.0 * h)));
-                if d_like || fe || flag_top || under || (!separate && (((ov > 0.45 * narrow || center_in) && vgap < 0.3 * h) || dot_over || stacked)) {
+                if d_like || fe || dash_pair(&l, &b, h) || flag_top || under || (!separate && (((ov > 0.45 * narrow || center_in) && vgap < 0.3 * h) || dot_over || stacked)) {
                     let s = &mut self.syms[last];
                     s.strokes.push(st);
                     s.b.union(&b);
@@ -335,13 +346,13 @@ fn refine(l: &Layout, pick: &str, s: &Sym) -> String {
     let b = s.b;
     let h = l.h;
     if is_plus(l, s) { return "+".into(); }
-    if is_infinity(l, s) && !(pick.len() == 1 && pick.chars().all(|c| c.is_ascii_digit())) && !["x", "X", "xx", "×"].contains(&pick) { return "oo".into(); }
+    if is_infinity(l, s) && !(pick.len() == 1 && pick.chars().all(|c| c.is_ascii_digit())) && !["x", "X", "xx", "×", "alpha", "sigma", "delta"].contains(&pick) { return "oo".into(); }
     if s.strokes.len() == 1 && is_flat(&b, h) { return "-".into(); }
     let mut pick = pick.to_string();
     if pick == "_" { pick = "-".into(); }
     let crossed = s.strokes.len() >= 2 && s.strokes.iter().any(|&i| is_bar(&l.bs[i], h) && l.bs[i].cy() > b.y0 + 0.2 * b.h() && l.bs[i].cy() < b.y1 - 0.2 * b.h());
     if crossed && ["int", "S", "s", "ʃ", "∫"].contains(&pick.as_str()) { pick = "f".into(); }
-    else if b.h() > 1.7 * h && ["S", "s", "f", "ʃ", "int"].contains(&pick.as_str()) && b.w() < 0.7 * b.h() { pick = "int".into(); }
+    else if !crossed && b.h() > 1.7 * h && ["S", "s", "f", "ʃ", "int"].contains(&pick.as_str()) && b.w() < 0.7 * b.h() { pick = "int".into(); }
     else if b.h() > 1.7 * h && ["E", "Σ", "sum"].contains(&pick.as_str()) { pick = "sum".into(); }
     if pick.len() == 1 && "CKOPSUVWXZ".contains(pick.as_str()) && b.h() < 0.72 * h { pick = pick.to_lowercase(); }
     pick
@@ -351,6 +362,7 @@ fn choose(l: &Layout, cands: &[String], s: &Sym) -> String {
     let h = l.h;
     if s.strokes.len() == 1 && is_flat(&s.b, h) { return "-".into(); }
     if s.strokes.len() == 2 && s.strokes.iter().all(|&i| is_bar(&l.bs[i], h)) { return "=".into(); }
+    if s.strokes.len() == 2 && dash_pair(&l.bs[s.strokes[0]], &l.bs[s.strokes[1]], h) { return "=".into(); }
     if s.strokes.len() == 1 && is_dot(&s.b, h) { return ".".into(); }
     let mut pick: Option<String> = None;
     for c in cands {
@@ -468,7 +480,7 @@ impl<'a, 'b> Emitter<'a, 'b> {
                 // the sign and what follows both sit high, next to the base
                 let nb2 = self.b(&nodes[i + 1]);
                 base.as_ref().map(|bn| { let bb = self.b(bn); nb.y1 < bb.cy() && nb.cy() < ref_cy - 0.35 * ref_h && nb2.cy() < ref_cy - 0.2 * ref_h && nb2.y1 < bb.cy() + 0.15 * bb.h()
-                    && nb2.h() < 1.3 * ref_h && nb2.y1 < ref_cy && nb2.h() < 1.6 * bb.h() }).unwrap_or(false)
+                    && nb2.h() < 1.6 * ref_h && nb2.y1 < ref_cy && nb2.h() < 1.6 * bb.h() }).unwrap_or(false)
             };
             if let (Some(bn), false, false, true) = (base.clone(), flat, self.is_op(&n) && !raised_sign, matches!(n, Node::Sym(_))) {
                 let mut bb = self.b(&bn);
