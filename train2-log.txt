@@ -1,0 +1,5 @@
+V/SplashScreenExceptionList(  518): SplashScreen checking exception for package com.netadmindave.inknotes2 (target sdk:34) -> false
+V/GraphicsEnvironment( 4658): com.netadmindave.inknotes2 is not listed in per-application setting
+W/InputManager-JNI(  518): Input channel object '9ef3c26 Splash Screen com.netadmindave.inknotes2 (client)' was disposed without first being removed with the input manager!
+D/CoreBackPreview(  518): Window{9ef3c26 u0 Splash Screen com.netadmindave.inknotes2 EXITING}: Setting back callback null
+I/GoogleInputMethodService( 1529): GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.netadmindave.inknotes2 fieldId=0 fieldName=null extras=null}, false)

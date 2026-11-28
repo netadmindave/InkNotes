@@ -1,0 +1,11 @@
+V/SplashScreenExceptionList(  518): SplashScreen checking exception for package com.netadmindave.inknotes2 (target sdk:34) -> false
+V/GraphicsEnvironment( 5054): com.netadmindave.inknotes2 is not listed in per-application setting
+W/InputManager-JNI(  518): Input channel object 'fd77d2e Splash Screen com.netadmindave.inknotes2 (client)' was disposed without first being removed with the input manager!
+D/CoreBackPreview(  518): Window{fd77d2e u0 Splash Screen com.netadmindave.inknotes2 EXITING}: Setting back callback null
+D/ConnectivityService(  518): requestNetwork for uid/pid:10192/5054 activeRequest: null callbackRequest: 130 [NetworkRequest [ REQUEST id=131, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10192 RequestorUid: 10192 RequestorPkg: com.netadmindave.inknotes2 UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647
+D/WifiNetworkFactory(  518): got request NetworkRequest [ REQUEST id=131, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10192 RequestorUid: 10192 RequestorPkg: com.netadmindave.inknotes2 UnderlyingNetworks: Null] ]
+D/UntrustedWifiNetworkFactory(  518): got request NetworkRequest [ REQUEST id=131, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10192 RequestorUid: 10192 RequestorPkg: com.netadmindave.inknotes2 UnderlyingNetworks: Null] ]
+D/OemPaidWifiNetworkFactory(  518): got request NetworkRequest [ REQUEST id=131, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10192 RequestorUid: 10192 RequestorPkg: com.netadmindave.inknotes2 UnderlyingNetworks: Null] ]
+D/MultiInternetWifiNetworkFactory(  518): got request NetworkRequest [ REQUEST id=131, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED Uid: 10192 RequestorUid: 10192 RequestorPkg: com.netadmindave.inknotes2 UnderlyingNetworks: Null] ]
+I/GoogleInputMethodService( 1529): GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.netadmindave.inknotes2 fieldId=0 fieldName=null extras=null}, false)
+W/InkMath ( 5054): loaded file:///android_asset/mathedit/index.html 1261x860
