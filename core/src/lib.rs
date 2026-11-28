@@ -8,4 +8,6 @@ pub mod recognize;
 pub mod asciimath;
 pub mod mathtext;
 pub mod cleanup;
+#[cfg(feature = "inkmath")]
+pub mod inkmath;
 pub mod jni;
