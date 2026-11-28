@@ -221,6 +221,8 @@ pub extern "system" fn Java_com_netadmindave_inknotes2_Core_util(mut env: JNIEnv
 }
 
 static RECO: std::sync::Mutex<Option<recognize::Job>> = std::sync::Mutex::new(None);
+#[cfg(feature = "inkmath")]
+static INKMATH: std::sync::Mutex<Option<crate::inkmath::InkMath>> = std::sync::Mutex::new(None);
 
 pub fn util(op: &str, raw: &str) -> Value {
     let a: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
@@ -237,6 +239,28 @@ pub fn util(op: &str, raw: &str) -> Value {
             "pages": n.pages.len(), "pinned": n.pinned, "tags": n.tags })).unwrap_or(Value::Null),
         "migrate" => Note::parse(raw).map(|n| Value::String(n.to_json())).unwrap_or(Value::Null),
         "tex" => Value::String(asciimath::to_tex(raw)),
+        #[cfg(feature = "inkmath")]
+        "inkmathLoad" => {
+            let load = || -> Result<crate::inkmath::InkMath, String> {
+                let onnx = std::fs::read(st("onnx")).map_err(|e| e.to_string())?;
+                let vocab = std::fs::read_to_string(st("vocab")).map_err(|e| e.to_string())?;
+                crate::inkmath::InkMath::load(&onnx, &vocab).map_err(|e| e.to_string())
+            };
+            match load() { Ok(m) => { *INKMATH.lock().unwrap() = Some(m); json!({"ok": true}) } Err(e) => json!({"ok": false, "error": e}) }
+        }
+        #[cfg(feature = "inkmath")]
+        "inkmath" => {
+            let g = INKMATH.lock().unwrap();
+            match g.as_ref() {
+                None => Value::Null,
+                Some(m) => {
+                    let ink: Vec<Vec<(f64, f64)>> = strokes("strokes").iter().filter(|s| s.k != "hl" && !s.p.is_empty()).map(|s| s.p.iter().map(|p| (p.x as f64, p.y as f64)).collect()).collect();
+                    match m.recognize(&ink) { Ok(r) => json!({"tex": r.latex, "conf": r.conf}), Err(e) => json!({"error": e.to_string()}) }
+                }
+            }
+        }
+        #[cfg(feature = "inkmath")]
+        "texCanon" => Value::String(crate::inkmath::canon(raw).join(" ")),
         "mathRuns" => json!(mathtext::find_math_runs(raw)),
         "clean" => {
             let words: Vec<String> = serde_json::from_value(a["words"].clone()).unwrap_or_default();

@@ -402,7 +402,10 @@ fun MainActivity.Practice(math: Boolean) {
                     try {
                         val pieces = Recognizer.convert(strokes, if (math) "math" else "text")
                         val read = if (math) pieces.joinToString(" ") { it.src } else applyCorrections(pieces.joinToString(" ") { it.src.replace('\n', ' ') })
-                        val ok = if (math) norm(read) == norm(target) else words(read).map { it.lowercase() } == words(target).map { it.lowercase() }
+                        // the formula model's reading, when it was confident, is what Convert would insert
+                        val modelRead = if (math && pieces.isNotEmpty() && pieces.all { it.tex.isNotBlank() }) pieces.joinToString(" ") { it.tex } else ""
+                        val ok = if (math) (if (modelRead.isNotEmpty()) FormulaModel.same(modelRead, Core.tex(target)) else norm(read) == norm(target))
+                                 else words(read).map { it.lowercase() } == words(target).map { it.lowercase() }
                         val notes = ArrayList<String>()
                         if (math) {
                             val fp = FORMULA_PROMPTS.firstOrNull { it.src == target }
@@ -433,12 +436,13 @@ fun MainActivity.Practice(math: Boolean) {
                             else if (learned.isEmpty() && !ok) learned = "Couldn't split the words into letters — leave a little space between letters and a bigger one between words."
                         }
                         store.logTraining(jo("kind" to (if (math) "formula" else "text"), "expected" to target, "read" to read, "ok" to ok,
+                            "model" to pieces.joinToString(" ") { it.modelTex }, "modelConf" to (pieces.minOfOrNull { it.conf } ?: 0f).toDouble(),
                             "glyphs" to (FORMULA_PROMPTS.firstOrNull { it.src == target }?.glyphs?.let { JSONArray(it) }),
                             "syms" to JSONArray(pieces.flatMap { it.syms }.map { sy -> jo("ch" to sy.ch, "strokes" to JSONArray(sy.strokes)) }),
                             "pad" to jo("w" to pad.width, "h" to pad.height), "strokes" to strokes))
                         recent = recent + ok
                         if (ok) passed = passed + target
-                        result = ok to read
+                        result = ok to (if (modelRead.isNotEmpty()) latexToSrc(modelRead) else read)
                     } catch (e: Exception) { toast(e.message ?: "Couldn't read that") }
                     busyHere = false
                 }

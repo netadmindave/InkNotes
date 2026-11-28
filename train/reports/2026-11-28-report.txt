@@ -1,0 +1,753 @@
+Before tuning on your writing: 61.9% of 113 InkNotes formulas exactly right, token errors 13.0%
+  ✗ 3y                                       got {}^{}{   conf 0.25
+  ✓ 10^{6}                                   got 10^{6}   conf 0.70
+  ✗ a_{1}                                    got {}^_},   conf 0.34
+  ✓ x^{2}                                    got x^{2}   conf 0.98
+  ✓ 2x                                       got 2x   conf 0.92
+  ✓ \pi r                                    got \pi r   conf 0.61
+  ✗ e^{x}                                    got e^{X}   conf 0.52
+  ✓ dx                                       got dx   conf 0.73
+  ✗ 3y                                       got 3_{\gamma}   conf 0.86
+  ✗ a_{1}                                    got a,   conf 0.74
+  ✓ x^{2}                                    got x^{2}   conf 0.76
+  ✓ \pi r                                    got \pi r   conf 0.89
+  ✗ e^{x}                                    got e^{X}   conf 0.48
+  ✗ 3y                                       got 3_{Y}   conf 0.96
+  ✗ a_{1}                                    got q,   conf 0.71
+  ✓ e^{x}                                    got e^{x}   conf 0.62
+  ✓ e^{x}                                    got e^{x}   conf 0.80
+  ✓ e^{x}                                    got e^{x}   conf 0.94
+  ✓ e^{x}                                    got e^{x}   conf 0.95
+  ✗ n_{p0}-J_{s}                             got n_{p0o}-J_{s}   conf 0.52
+  ✓ x-y                                      got x-y   conf 0.98
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.87
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ 2x+3y                                    got 2x+3y   conf 0.98
+  ✓ x^{2}+1                                  got x^{2}+1   conf 0.86
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}}-J_{s}   conf 0.54
+  ✓ x-y                                      got x-y   conf 0.94
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.65
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 0.74
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}-J_{s}   conf 0.69
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.76
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✗ 2\pi f                                   got Z\pi f   conf 0.79
+  ✗ \Delta n=1.2\times 10^{-5}               got \Delta_{n}=1.2\times10^{-5}   conf 0.57
+  ✓ y=mx+b                                   got y=mx+b   conf 0.94
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 0.64
+  ✗ \theta=\phi+\psi                         got \theta=\phi\vdash\psi   conf 0.84
+  ✓ F=ma                                     got F=ma   conf 1.00
+  ✗ x^{2}+y^{2}=r^{2}                        got x^{2}+\gamma^{2}=r^{2}   conf 0.30
+  ✓ E=mc^{2}                                 got E=mc^{2}   conf 1.00
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 0.99
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 0.70
+  ✓ \omega=2\pi f                            got \omega=2\pi f   conf 0.74
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.83
+  ✗ \frac{dn}{dT}=1.2\times 10^{-5}          got \frac{dn}{dt}=1.2\times10^{-5}   conf 0.56
+  ✗ n_{p0}-J_{s}+\frac{2\pi}{k_{b}T}         got n_{p{0}}-J_{s}+\frac{2\pi}{k_{3}T}   conf 0.51
+  ✓ \int_{0}^{1}xdx                          got \int_{0}^{1}xdx   conf 0.82
+  ✓ \frac{a+b}{c-d}                          got \frac{a+b}{c-d}   conf 0.57
+  ✓ \sqrt{2}+1                               got \sqrt{2}+1   conf 0.56
+  ✓ \frac{1}{2}                              got \frac{1}{2}   conf 0.93
+  ✗ \sum_{n=1}^{N}\frac{1}{n^{2}}            got \sum_{n=1}{N{1}n{2}}   conf 0.45
+  ✓ \frac{dn}{dT}=1.2\times 10^{-5}          got \frac{dn}{dT}=1.2\times10^{-5}   conf 0.72
+  ✗ \theta                                   got \Theta   conf 0.77
+  ✓ x                                        got x   conf 0.57
+  ✓ +                                        got +   conf 0.75
+  ✓ \infty                                   got \infty   conf 1.00
+  ✗ \alpha                                   got \propto   conf 0.50
+  ✓ =                                        got =   conf 1.00
+  ✓ 2                                        got 2   conf 0.99
+  ✗ \pi                                      got \Pi   conf 0.93
+  ✓ y                                        got y   conf 0.86
+  ✓ \lambda                                  got \lambda   conf 1.00
+  ✗ \theta                                   got \Theta   conf 0.93
+  ✓ \alpha                                   got \alpha   conf 0.72
+  ✗ 10^{6}                                   got 60^{6}   conf 0.41
+  ✗ e^{x}                                    got e^{X}   conf 0.43
+  ✗ x^{2}                                    got \chi^{2}   conf 0.68
+  ✓ 2x                                       got 2x   conf 0.94
+  ✗ a_{1}                                    got a,   conf 0.63
+  ✗ 3y                                       got 3_{y}   conf 0.40
+  ✗ dx                                       got d_{x}   conf 0.79
+  ✓ x^{2}                                    got x^{2}   conf 0.98
+  ✓ \pi r                                    got \pi r   conf 0.82
+  ✓ dx                                       got dx   conf 0.98
+  ✓ x^{2}                                    got x^{2}   conf 0.73
+  ✓ x\le 5                                   got x\leq5   conf 0.89
+  ✓ x^{2}+1                                  got x^{2}+1   conf 0.93
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}}-J_{s}   conf 0.34
+  ✓ 2x+3y                                    got 2x+3y   conf 0.71
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✗ a_{1}+a_{2}                              got a,+a_{2}   conf 0.98
+  ✗ x-y                                      got -x   conf 0.85
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}-J_{s}   conf 0.44
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.59
+  ✗ F=ma                                     got F=m{c}   conf 0.50
+  ✗ f\left(x\right)=e^{-x}                   got f(x)}=e^{-x}   conf 0.77
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 1.00
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 0.81
+  ✓ \omega=2\pi f                            got \omega=2\pi f   conf 0.77
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.78
+  ✓ y=mx+b                                   got y=mx+b   conf 0.98
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 1.00
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 0.71
+  ✓ E=mc^{2}                                 got E=mc^{2}   conf 0.83
+  ✗ \Delta n=1.2\times 10^{-5}               got \Delta n=1.2\times0}^{-5}   conf 0.49
+  ✗ F=ma                                     got F=mb   conf 0.58
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.94
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 0.99
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 0.94
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.51
+  ✓ F=ma                                     got F=ma   conf 0.94
+  ✗ \theta=\phi+\psi                         got \theta=0+4   conf 0.57
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 0.99
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 0.88
+  ✓ y=mx+b                                   got y=mx+b   conf 0.96
+  ✗ P=\sigma AT^{4}                          got P=\sigma AJ^{4}   conf 0.76
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.56
+  ✗ \Delta n=1.2\times 10^{-5}               got \Delta n}=1.2\times10^{-5}   conf 0.61
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.81
+
+Fold 1 (formulas it never saw): 68.5% of 54 InkNotes formulas exactly right, token errors 11.3%
+  ✗ 3y                                       got 2y   conf 0.91
+  ✓ x^{2}                                    got x^{2}   conf 0.77
+  ✓ \pi r                                    got \pi r   conf 0.96
+  ✗ 3y                                       got 3_{y}   conf 0.95
+  ✗ x^{2}                                    got x^2}   conf 0.71
+  ✓ \pi r                                    got \pi r   conf 1.00
+  ✓ 3y                                       got 3y   conf 0.99
+  ✓ n_{p0}-J_{s}                             got n_{p0}-J_{s}   conf 0.97
+  ✓ x\le 5                                   got x\leq5   conf 0.84
+  ✓ x^{2}+1                                  got x^{2}+1   conf 0.93
+  ✗ n_{p0}-J_{s}                             got n_{p0}\cdot J_{s}   conf 0.68
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}-J_{s}   conf 0.60
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ y=mx+b                                   got y=mx+b   conf 1.00
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 1.00
+  ✓ F=ma                                     got F=ma   conf 1.00
+  ✓ E=mc^{2}                                 got E=mc^{2}   conf 1.00
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 0.99
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 0.93
+  ✓ \omega=2\pi f                            got \omega=2\pi f   conf 0.80
+  ✗ \sum_{n=1}^{N}\frac{1}{n^{2}}            got \sum_{n=1}{N}{1}{n{2}}   conf 0.54
+  ✗ \theta                                   got \Theta   conf 0.54
+  ✓ x                                        got x   conf 0.97
+  ✓ +                                        got +   conf 1.00
+  ✓ \infty                                   got \infty   conf 1.00
+  ✓ =                                        got =   conf 1.00
+  ✓ 2                                        got 2   conf 1.00
+  ✓ \pi                                      got \pi   conf 0.80
+  ✓ \lambda                                  got \lambda   conf 1.00
+  ✓ \theta                                   got \theta   conf 1.00
+  ✓ x^{2}                                    got x^{2}   conf 0.96
+  ✗ 3y                                       got 3_{y}   conf 0.65
+  ✓ x^{2}                                    got x^{2}   conf 0.97
+  ✓ \pi r                                    got \pi r   conf 0.99
+  ✓ x^{2}                                    got x^{2}   conf 0.97
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ x^{2}+1                                  got x^{2}+1   conf 0.97
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}}-J_{s}   conf 0.59
+  ✗ n_{p0}-J_{s}                             got n_{p_{0}}-J_{s}   conf 0.80
+  ✗ F=ma                                     got F=m_{\varsigma}   conf 0.47
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 1.00
+  ✓ \omega=2\pi f                            got \omega=2\pi f   conf 0.77
+  ✓ y=mx+b                                   got y=mx+b   conf 0.99
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 1.00
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 0.97
+  ✓ E=mc^{2}                                 got E=mc^{2}   conf 0.67
+  ✗ F=ma                                     got F=na   conf 0.65
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 0.72
+  ✓ F=ma                                     got F=ma   conf 0.98
+  ✗ \lambda\nu=c                             got \lambda v=c   conf 0.99
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 1.00
+  ✓ y=mx+b                                   got y=mx+b   conf 1.00
+  ✗ P=\sigma AT^{4}                          got P=\sigma AJ^{4}   conf 0.75
+
+Fold 2 (formulas it never saw): 83.1% of 59 InkNotes formulas exactly right, token errors 5.1%
+  ✓ 10^{6}                                   got 10^{6}   conf 0.53
+  ✗ a_{1}                                    got \underline{}_{1,   conf 0.47
+  ✓ 2x                                       got 2x   conf 0.99
+  ✓ e^{x}                                    got e^{x}   conf 0.57
+  ✓ dx                                       got dx   conf 1.00
+  ✓ a_{1}                                    got a_{1}   conf 0.57
+  ✓ e^{x}                                    got e^{x}   conf 0.63
+  ✗ a_{1}                                    got a,   conf 1.00
+  ✓ e^{x}                                    got e^{x}   conf 0.82
+  ✓ e^{x}                                    got e^{x}   conf 0.75
+  ✓ e^{x}                                    got e^{x}   conf 0.99
+  ✓ e^{x}                                    got e^{x}   conf 0.76
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.85
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ 2x+3y                                    got 2x+3y   conf 1.00
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 0.98
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.95
+  ✓ 2\pi f                                   got 2\pi f   conf 0.99
+  ✗ \Delta n=1.2\times 10^{-5}               got \Delta n}=1.2\times10^{-5}   conf 0.59
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 0.94
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.70
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.90
+  ✓ \frac{dn}{dT}=1.2\times 10^{-5}          got \frac{dn}{dT}=1.2\times10^{-5}   conf 0.69
+  ✗ n_{p0}-J_{s}+\frac{2\pi}{k_{b}T}         got n_{p0}-J_{s}+\frac{2\pi}{k_{3}T}   conf 0.63
+  ✓ \int_{0}^{1}xdx                          got \int_{0}^{1}xdx   conf 1.00
+  ✓ \frac{a+b}{c-d}                          got \frac{a+b}{c-d}   conf 0.55
+  ✓ \sqrt{2}+1                               got \sqrt{2}+1   conf 0.62
+  ✓ \frac{1}{2}                              got \frac{1}{2}   conf 1.00
+  ✓ \frac{dn}{dT}=1.2\times 10^{-5}          got \frac{dn}{dT}=1.2\times10^{-5}   conf 0.56
+  ✓ \alpha                                   got \alpha   conf 1.00
+  ✓ y                                        got y   conf 1.00
+  ✓ \alpha                                   got \alpha   conf 1.00
+  ✓ 10^{6}                                   got 10^{6}   conf 0.66
+  ✓ e^{x}                                    got e^{x}   conf 0.85
+  ✓ 2x                                       got 2x   conf 1.00
+  ✗ a_{1}                                    got a,   conf 0.86
+  ✓ dx                                       got dx   conf 1.00
+  ✓ dx                                       got dx   conf 1.00
+  ✓ 2x+3y                                    got 2x+3y   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✗ a_{1}+a_{2}                              got a_{,}+a_{2}   conf 0.57
+  ✗ x-y                                      got -x   conf 0.92
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.93
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.99
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 1.00
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.57
+  ✗ \Delta n=1.2\times 10^{-5}               got \Delta n=1.2\times100^{-5}   conf 0.76
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.57
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 0.86
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.79
+  ✗ \theta=\phi+\psi                         got \theta=0+4   conf 0.76
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.63
+  ✗ \Delta n=1.2\times 10^{-5}               got \Delta_{n}=1.2\times10^{-5}   conf 0.50
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.99
+
+Final model on all your formulas (it has seen these): 99.1% of 113 InkNotes formulas exactly right, token errors 0.4%
+  ✓ 3y                                       got 3y   conf 1.00
+  ✓ 10^{6}                                   got 10^{6}   conf 0.98
+  ✓ a_{1}                                    got a_{1}   conf 1.00
+  ✓ x^{2}                                    got x^{2}   conf 1.00
+  ✓ 2x                                       got 2x   conf 1.00
+  ✓ \pi r                                    got \pi r   conf 1.00
+  ✓ e^{x}                                    got e^{x}   conf 0.51
+  ✓ dx                                       got dx   conf 1.00
+  ✓ 3y                                       got 3y   conf 1.00
+  ✓ a_{1}                                    got a_{1}   conf 1.00
+  ✓ x^{2}                                    got x^{2}   conf 1.00
+  ✓ \pi r                                    got \pi r   conf 1.00
+  ✓ e^{x}                                    got e^{x}   conf 0.93
+  ✓ 3y                                       got 3y   conf 1.00
+  ✓ a_{1}                                    got a_{1}   conf 0.99
+  ✓ e^{x}                                    got e^{x}   conf 1.00
+  ✓ e^{x}                                    got e^{x}   conf 0.57
+  ✓ e^{x}                                    got e^{x}   conf 1.00
+  ✓ e^{x}                                    got e^{x}   conf 1.00
+  ✓ n_{p0}-J_{s}                             got n_{p0}-J_{s}   conf 0.99
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.98
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ 2x+3y                                    got 2x+3y   conf 1.00
+  ✓ x^{2}+1                                  got x^{2}+1   conf 0.83
+  ✓ n_{p0}-J_{s}                             got n_{p0}-J_{s}   conf 0.59
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 1.00
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ n_{p0}-J_{s}                             got n_{p0}-J_{s}   conf 0.56
+  ✓ x-y                                      got x-y   conf 0.61
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.98
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ \Delta n=1.2\times 10^{-5}               got \Delta n=1.2\times10^{-5}   conf 0.93
+  ✓ y=mx+b                                   got y=mx+b   conf 1.00
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 0.80
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 0.99
+  ✓ F=ma                                     got F=ma   conf 1.00
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.55
+  ✓ E=mc^{2}                                 got E=mc^{2}   conf 0.65
+  ✓ \lambda\nu=c                             got \lambda\nu=c   conf 1.00
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 1.00
+  ✓ \omega=2\pi f                            got \omega=2\pi f   conf 1.00
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.92
+  ✓ \frac{dn}{dT}=1.2\times 10^{-5}          got \frac{dn}{dT}=1.2\times10^{-5}   conf 0.78
+  ✓ n_{p0}-J_{s}+\frac{2\pi}{k_{b}T}         got n_{p0}-J_{s}+\frac{2\pi}{k_{b}T}   conf 0.94
+  ✓ \int_{0}^{1}xdx                          got \int_{0}^{1}xdx   conf 0.64
+  ✓ \frac{a+b}{c-d}                          got \frac{a+b}{c-d}   conf 0.85
+  ✓ \sqrt{2}+1                               got \sqrt{2}+1   conf 0.84
+  ✓ \frac{1}{2}                              got \frac{1}{2}   conf 1.00
+  ✗ \sum_{n=1}^{N}\frac{1}{n^{2}}            got \sum_{n=1}{N}{1}{n{2}}   conf 0.52
+  ✓ \frac{dn}{dT}=1.2\times 10^{-5}          got \frac{dn}{dT}=1.2\times10^{-5}   conf 0.99
+  ✓ \theta                                   got \theta   conf 1.00
+  ✓ x                                        got x   conf 1.00
+  ✓ +                                        got +   conf 1.00
+  ✓ \infty                                   got \infty   conf 1.00
+  ✓ \alpha                                   got \alpha   conf 1.00
+  ✓ =                                        got =   conf 1.00
+  ✓ 2                                        got 2   conf 1.00
+  ✓ \pi                                      got \pi   conf 1.00
+  ✓ y                                        got y   conf 1.00
+  ✓ \lambda                                  got \lambda   conf 1.00
+  ✓ \theta                                   got \theta   conf 1.00
+  ✓ \alpha                                   got \alpha   conf 1.00
+  ✓ 10^{6}                                   got 10^{6}   conf 0.84
+  ✓ e^{x}                                    got e^{x}   conf 0.77
+  ✓ x^{2}                                    got x^{2}   conf 0.98
+  ✓ 2x                                       got 2x   conf 1.00
+  ✓ a_{1}                                    got a_{1}   conf 1.00
+  ✓ 3y                                       got 3y   conf 1.00
+  ✓ dx                                       got dx   conf 1.00
+  ✓ x^{2}                                    got x^{2}   conf 0.99
+  ✓ \pi r                                    got \pi r   conf 1.00
+  ✓ dx                                       got dx   conf 1.00
+  ✓ x^{2}                                    got x^{2}   conf 1.00
+  ✓ x\le 5                                   got x\leq5   conf 1.00
+  ✓ x^{2}+1                                  got x^{2}+1   conf 1.00
+  ✓ n_{p0}-J_{s}                             got n_{p0}-J_{s}   conf 0.91
+  ✓ 2x+3y                                    got 2x+3y   conf 1.00
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.94
+  ✓ x-y                                      got x-y   conf 1.00
+  ✓ n_{p0}-J_{s}                             got n_{p0}-J_{s}   conf 0.81
+  ✓ 2\pi f                                   got 2\pi f   conf 1.00
+  ✓ a_{1}+a_{2}                              got a_{1}+a_{2}   conf 0.90
+  ✓ F=ma                                     got F=ma   conf 0.95
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.99
+  ✓ \lambda\nu=c                             got \lambda\nu=c   conf 1.00
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 1.00
+  ✓ \omega=2\pi f                            got \omega=2\pi f   conf 0.79
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.98
+  ✓ y=mx+b                                   got y=mx+b   conf 1.00
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 0.99
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 1.00
+  ✓ E=mc^{2}                                 got E=mc^{2}   conf 0.91
+  ✓ \Delta n=1.2\times 10^{-5}               got \Delta n=1.2\times10^{-5}   conf 0.99
+  ✓ F=ma                                     got F=ma   conf 1.00
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.54
+  ✓ \lambda\nu=c                             got \lambda\nu=c   conf 1.00
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 1.00
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.71
+  ✓ F=ma                                     got F=ma   conf 0.74
+  ✓ \theta=\phi+\psi                         got \theta=\phi+\psi   conf 1.00
+  ✓ \lambda\nu=c                             got \lambda\nu=c   conf 1.00
+  ✓ \alpha+\beta=\gamma                      got \alpha+\beta=\gamma   conf 1.00
+  ✓ y=mx+b                                   got y=mx+b   conf 1.00
+  ✓ P=\sigma AT^{4}                          got P=\sigma AT^{4}   conf 0.96
+  ✓ x^{2}+y^{2}=r^{2}                        got x^{2}+y^{2}=r^{2}   conf 0.97
+  ✓ \Delta n=1.2\times 10^{-5}               got \Delta n=1.2\times10^{-5}   conf 1.00
+  ✓ f\left(x\right)=e^{-x}                   got f(x)=e^{-x}   conf 0.69
+
+  5.55/7 h
+step 187400  loss 0.084  lr 1.19e-04  0.11s/step  5.56/7 h
+step 187600  loss 0.073  lr 1.18e-04  0.11s/step  5.56/7 h
+step 187800  loss 0.076  lr 1.17e-04  0.10s/step  5.57/7 h
+step 188000  loss 0.074  lr 1.17e-04  0.11s/step  5.58/7 h
+step 188200  loss 0.066  lr 1.16e-04  0.11s/step  5.58/7 h
+step 188400  loss 0.069  lr 1.15e-04  0.10s/step  5.59/7 h
+step 188600  loss 0.078  lr 1.14e-04  0.11s/step  5.59/7 h
+step 188800  loss 0.071  lr 1.14e-04  0.11s/step  5.60/7 h
+step 189000  loss 0.067  lr 1.13e-04  0.11s/step  5.61/7 h
+  valid: exact 54.9%  token errors 9.7%
+step 189200  loss 0.072  lr 1.12e-04  0.11s/step  5.61/7 h
+step 189400  loss 0.065  lr 1.11e-04  0.11s/step  5.62/7 h
+step 189600  loss 0.072  lr 1.11e-04  0.10s/step  5.62/7 h
+step 189800  loss 0.067  lr 1.10e-04  0.10s/step  5.63/7 h
+step 190000  loss 0.066  lr 1.09e-04  0.11s/step  5.64/7 h
+step 190200  loss 0.076  lr 1.08e-04  0.10s/step  5.64/7 h
+step 190400  loss 0.068  lr 1.08e-04  0.11s/step  5.65/7 h
+step 190600  loss 0.070  lr 1.07e-04  0.11s/step  5.65/7 h
+step 190800  loss 0.067  lr 1.06e-04  0.10s/step  5.66/7 h
+step 191000  loss 0.065  lr 1.05e-04  0.10s/step  5.66/7 h
+step 191200  loss 0.071  lr 1.05e-04  0.12s/step  5.67/7 h
+step 191400  loss 0.073  lr 1.04e-04  0.10s/step  5.68/7 h
+step 191600  loss 0.072  lr 1.03e-04  0.11s/step  5.68/7 h
+step 191800  loss 0.081  lr 1.02e-04  0.11s/step  5.69/7 h
+step 192000  loss 0.071  lr 1.02e-04  0.11s/step  5.69/7 h
+  valid: exact 54.4%  token errors 9.7%
+step 192200  loss 0.072  lr 1.01e-04  0.11s/step  5.70/7 h
+step 192400  loss 0.079  lr 1.00e-04  0.11s/step  5.71/7 h
+step 192600  loss 0.072  lr 9.97e-05  0.10s/step  5.71/7 h
+step 192800  loss 0.068  lr 9.89e-05  0.11s/step  5.72/7 h
+step 193000  loss 0.067  lr 9.82e-05  0.11s/step  5.72/7 h
+step 193200  loss 0.067  lr 9.75e-05  0.11s/step  5.73/7 h
+step 193400  loss 0.072  lr 9.68e-05  0.11s/step  5.74/7 h
+step 193600  loss 0.066  lr 9.62e-05  0.10s/step  5.74/7 h
+step 193800  loss 0.064  lr 9.55e-05  0.11s/step  5.75/7 h
+step 194000  loss 0.072  lr 9.48e-05  0.11s/step  5.75/7 h
+step 194200  loss 0.065  lr 9.41e-05  0.11s/step  5.76/7 h
+step 194400  loss 0.069  lr 9.34e-05  0.11s/step  5.76/7 h
+step 194600  loss 0.058  lr 9.27e-05  0.10s/step  5.77/7 h
+step 194800  loss 0.068  lr 9.20e-05  0.11s/step  5.78/7 h
+step 195000  loss 0.073  lr 9.14e-05  0.11s/step  5.78/7 h
+  valid: exact 54.7%  token errors 9.6%
+step 195200  loss 0.073  lr 9.07e-05  0.11s/step  5.79/7 h
+step 195400  loss 0.065  lr 9.00e-05  0.11s/step  5.79/7 h
+step 195600  loss 0.073  lr 8.93e-05  0.11s/step  5.80/7 h
+step 195800  loss 0.065  lr 8.87e-05  0.11s/step  5.81/7 h
+step 196000  loss 0.075  lr 8.80e-05  0.11s/step  5.81/7 h
+step 196200  loss 0.068  lr 8.74e-05  0.11s/step  5.82/7 h
+step 196400  loss 0.071  lr 8.67e-05  0.10s/step  5.82/7 h
+step 196600  loss 0.069  lr 8.61e-05  0.10s/step  5.83/7 h
+step 196800  loss 0.072  lr 8.54e-05  0.11s/step  5.84/7 h
+step 197000  loss 0.073  lr 8.48e-05  0.10s/step  5.84/7 h
+step 197200  loss 0.062  lr 8.42e-05  0.10s/step  5.85/7 h
+step 197400  loss 0.062  lr 8.35e-05  0.10s/step  5.85/7 h
+step 197600  loss 0.069  lr 8.29e-05  0.10s/step  5.86/7 h
+step 197800  loss 0.079  lr 8.23e-05  0.11s/step  5.86/7 h
+step 198000  loss 0.083  lr 8.17e-05  0.11s/step  5.87/7 h
+  valid: exact 54.7%  token errors 9.6%
+step 198200  loss 0.065  lr 8.11e-05  0.11s/step  5.88/7 h
+step 198400  loss 0.074  lr 8.04e-05  0.10s/step  5.88/7 h
+step 198600  loss 0.078  lr 7.98e-05  0.11s/step  5.89/7 h
+step 198800  loss 0.065  lr 7.92e-05  0.11s/step  5.89/7 h
+step 199000  loss 0.068  lr 7.85e-05  0.11s/step  5.90/7 h
+step 199200  loss 0.068  lr 7.79e-05  0.11s/step  5.91/7 h
+step 199400  loss 0.070  lr 7.73e-05  0.11s/step  5.91/7 h
+step 199600  loss 0.065  lr 7.67e-05  0.10s/step  5.92/7 h
+step 199800  loss 0.071  lr 7.61e-05  0.11s/step  5.92/7 h
+step 200000  loss 0.070  lr 7.55e-05  0.10s/step  5.93/7 h
+step 200200  loss 0.069  lr 7.49e-05  0.10s/step  5.93/7 h
+step 200400  loss 0.068  lr 7.44e-05  0.10s/step  5.94/7 h
+step 200600  loss 0.073  lr 7.38e-05  0.11s/step  5.95/7 h
+step 200800  loss 0.063  lr 7.32e-05  0.10s/step  5.95/7 h
+step 201000  loss 0.064  lr 7.26e-05  0.10s/step  5.96/7 h
+  valid: exact 54.8%  token errors 9.4%
+step 201200  loss 0.061  lr 7.20e-05  0.11s/step  5.96/7 h
+step 201400  loss 0.064  lr 7.14e-05  0.11s/step  5.97/7 h
+step 201600  loss 0.071  lr 7.09e-05  0.11s/step  5.98/7 h
+step 201800  loss 0.066  lr 7.03e-05  0.11s/step  5.98/7 h
+step 202000  loss 0.068  lr 6.97e-05  0.10s/step  5.99/7 h
+step 202200  loss 0.072  lr 6.92e-05  0.10s/step  5.99/7 h
+step 202400  loss 0.071  lr 6.86e-05  0.11s/step  6.00/7 h
+step 202600  loss 0.066  lr 6.80e-05  0.11s/step  6.01/7 h
+step 202800  loss 0.067  lr 6.75e-05  0.10s/step  6.01/7 h
+step 203000  loss 0.064  lr 6.69e-05  0.11s/step  6.02/7 h
+step 203200  loss 0.066  lr 6.64e-05  0.10s/step  6.02/7 h
+step 203400  loss 0.062  lr 6.58e-05  0.11s/step  6.03/7 h
+step 203600  loss 0.062  lr 6.53e-05  0.10s/step  6.03/7 h
+step 203800  loss 0.067  lr 6.47e-05  0.10s/step  6.04/7 h
+step 204000  loss 0.069  lr 6.42e-05  0.11s/step  6.05/7 h
+  valid: exact 55.4%  token errors 9.5%
+step 204200  loss 0.061  lr 6.37e-05  0.11s/step  6.05/7 h
+step 204400  loss 0.072  lr 6.31e-05  0.11s/step  6.06/7 h
+step 204600  loss 0.066  lr 6.26e-05  0.11s/step  6.06/7 h
+step 204800  loss 0.066  lr 6.21e-05  0.11s/step  6.07/7 h
+step 205000  loss 0.069  lr 6.15e-05  0.10s/step  6.08/7 h
+step 205200  loss 0.076  lr 6.10e-05  0.10s/step  6.08/7 h
+step 205400  loss 0.058  lr 6.05e-05  0.11s/step  6.09/7 h
+step 205600  loss 0.062  lr 6.00e-05  0.10s/step  6.09/7 h
+step 205800  loss 0.060  lr 5.95e-05  0.11s/step  6.10/7 h
+step 206000  loss 0.066  lr 5.90e-05  0.11s/step  6.10/7 h
+step 206200  loss 0.066  lr 5.85e-05  0.10s/step  6.11/7 h
+step 206400  loss 0.057  lr 5.80e-05  0.11s/step  6.12/7 h
+step 206600  loss 0.065  lr 5.75e-05  0.11s/step  6.12/7 h
+step 206800  loss 0.062  lr 5.70e-05  0.10s/step  6.13/7 h
+step 207000  loss 0.061  lr 5.65e-05  0.11s/step  6.13/7 h
+  valid: exact 55.5%  token errors 9.6%
+step 207200  loss 0.066  lr 5.60e-05  0.12s/step  6.14/7 h
+step 207400  loss 0.062  lr 5.55e-05  0.11s/step  6.15/7 h
+step 207600  loss 0.061  lr 5.50e-05  0.11s/step  6.15/7 h
+step 207800  loss 0.062  lr 5.44e-05  0.12s/step  6.16/7 h
+step 208000  loss 0.065  lr 5.39e-05  0.11s/step  6.17/7 h
+step 208200  loss 0.064  lr 5.34e-05  0.11s/step  6.17/7 h
+step 208400  loss 0.064  lr 5.29e-05  0.11s/step  6.18/7 h
+step 208600  loss 0.058  lr 5.24e-05  0.11s/step  6.18/7 h
+step 208800  loss 0.063  lr 5.20e-05  0.11s/step  6.19/7 h
+step 209000  loss 0.063  lr 5.15e-05  0.11s/step  6.20/7 h
+step 209200  loss 0.061  lr 5.10e-05  0.11s/step  6.20/7 h
+step 209400  loss 0.061  lr 5.05e-05  0.11s/step  6.21/7 h
+step 209600  loss 0.062  lr 5.00e-05  0.12s/step  6.22/7 h
+step 209800  loss 0.064  lr 4.96e-05  0.11s/step  6.22/7 h
+step 210000  loss 0.061  lr 4.91e-05  0.12s/step  6.23/7 h
+  valid: exact 55.5%  token errors 9.4%
+step 210200  loss 0.058  lr 4.86e-05  0.12s/step  6.23/7 h
+step 210400  loss 0.056  lr 4.81e-05  0.11s/step  6.24/7 h
+step 210600  loss 0.057  lr 4.77e-05  0.10s/step  6.25/7 h
+step 210800  loss 0.059  lr 4.73e-05  0.11s/step  6.25/7 h
+step 211000  loss 0.071  lr 4.69e-05  0.11s/step  6.26/7 h
+step 211200  loss 0.060  lr 4.65e-05  0.11s/step  6.26/7 h
+step 211400  loss 0.062  lr 4.60e-05  0.11s/step  6.27/7 h
+step 211600  loss 0.066  lr 4.56e-05  0.10s/step  6.28/7 h
+step 211800  loss 0.064  lr 4.52e-05  0.11s/step  6.28/7 h
+step 212000  loss 0.060  lr 4.48e-05  0.11s/step  6.29/7 h
+step 212200  loss 0.062  lr 4.44e-05  0.11s/step  6.29/7 h
+step 212400  loss 0.061  lr 4.40e-05  0.11s/step  6.30/7 h
+step 212600  loss 0.064  lr 4.36e-05  0.11s/step  6.31/7 h
+step 212800  loss 0.060  lr 4.32e-05  0.11s/step  6.31/7 h
+step 213000  loss 0.066  lr 4.28e-05  0.11s/step  6.32/7 h
+  valid: exact 54.9%  token errors 9.5%
+step 213200  loss 0.065  lr 4.24e-05  0.11s/step  6.32/7 h
+step 213400  loss 0.065  lr 4.20e-05  0.11s/step  6.33/7 h
+step 213600  loss 0.054  lr 4.16e-05  0.11s/step  6.34/7 h
+step 213800  loss 0.060  lr 4.12e-05  0.11s/step  6.34/7 h
+step 214000  loss 0.065  lr 4.09e-05  0.10s/step  6.35/7 h
+step 214200  loss 0.069  lr 4.05e-05  0.10s/step  6.35/7 h
+step 214400  loss 0.061  lr 4.02e-05  0.10s/step  6.36/7 h
+step 214600  loss 0.058  lr 3.99e-05  0.10s/step  6.36/7 h
+step 214800  loss 0.063  lr 3.95e-05  0.10s/step  6.37/7 h
+step 215000  loss 0.056  lr 3.91e-05  0.10s/step  6.38/7 h
+step 215200  loss 0.066  lr 3.88e-05  0.10s/step  6.38/7 h
+step 215400  loss 0.058  lr 3.84e-05  0.11s/step  6.39/7 h
+step 215600  loss 0.067  lr 3.81e-05  0.10s/step  6.39/7 h
+step 215800  loss 0.062  lr 3.78e-05  0.10s/step  6.40/7 h
+step 216000  loss 0.071  lr 3.74e-05  0.10s/step  6.40/7 h
+  valid: exact 55.5%  token errors 9.5%
+step 216200  loss 0.067  lr 3.71e-05  0.11s/step  6.41/7 h
+step 216400  loss 0.059  lr 3.67e-05  0.11s/step  6.42/7 h
+step 216600  loss 0.073  lr 3.64e-05  0.11s/step  6.42/7 h
+step 216800  loss 0.056  lr 3.61e-05  0.11s/step  6.43/7 h
+step 217000  loss 0.065  lr 3.57e-05  0.11s/step  6.43/7 h
+step 217200  loss 0.070  lr 3.54e-05  0.11s/step  6.44/7 h
+step 217400  loss 0.059  lr 3.51e-05  0.11s/step  6.45/7 h
+step 217600  loss 0.057  lr 3.47e-05  0.11s/step  6.45/7 h
+step 217800  loss 0.054  lr 3.44e-05  0.10s/step  6.46/7 h
+step 218000  loss 0.063  lr 3.41e-05  0.11s/step  6.46/7 h
+step 218200  loss 0.061  lr 3.38e-05  0.11s/step  6.47/7 h
+step 218400  loss 0.057  lr 3.35e-05  0.11s/step  6.48/7 h
+step 218600  loss 0.062  lr 3.32e-05  0.11s/step  6.48/7 h
+step 218800  loss 0.064  lr 3.29e-05  0.11s/step  6.49/7 h
+step 219000  loss 0.061  lr 3.26e-05  0.11s/step  6.49/7 h
+  valid: exact 55.1%  token errors 9.4%
+step 219200  loss 0.063  lr 3.23e-05  0.11s/step  6.50/7 h
+step 219400  loss 0.065  lr 3.20e-05  0.11s/step  6.51/7 h
+step 219600  loss 0.053  lr 3.17e-05  0.11s/step  6.51/7 h
+step 219800  loss 0.056  lr 3.15e-05  0.11s/step  6.52/7 h
+step 220000  loss 0.058  lr 3.12e-05  0.11s/step  6.52/7 h
+step 220200  loss 0.058  lr 3.09e-05  0.11s/step  6.53/7 h
+step 220400  loss 0.073  lr 3.06e-05  0.10s/step  6.53/7 h
+step 220600  loss 0.061  lr 3.04e-05  0.10s/step  6.54/7 h
+step 220800  loss 0.067  lr 3.01e-05  0.11s/step  6.55/7 h
+step 221000  loss 0.057  lr 2.98e-05  0.10s/step  6.55/7 h
+step 221200  loss 0.050  lr 2.96e-05  0.11s/step  6.56/7 h
+step 221400  loss 0.063  lr 2.93e-05  0.11s/step  6.56/7 h
+step 221600  loss 0.063  lr 2.91e-05  0.10s/step  6.57/7 h
+step 221800  loss 0.063  lr 2.88e-05  0.11s/step  6.58/7 h
+step 222000  loss 0.066  lr 2.86e-05  0.11s/step  6.58/7 h
+  valid: exact 55.4%  token errors 9.4%
+step 222200  loss 0.065  lr 2.84e-05  0.11s/step  6.59/7 h
+step 222400  loss 0.060  lr 2.81e-05  0.11s/step  6.59/7 h
+step 222600  loss 0.062  lr 2.79e-05  0.11s/step  6.60/7 h
+step 222800  loss 0.064  lr 2.77e-05  0.10s/step  6.61/7 h
+step 223000  loss 0.062  lr 2.74e-05  0.11s/step  6.61/7 h
+step 223200  loss 0.059  lr 2.72e-05  0.11s/step  6.62/7 h
+step 223400  loss 0.066  lr 2.70e-05  0.11s/step  6.62/7 h
+step 223600  loss 0.059  lr 2.68e-05  0.11s/step  6.63/7 h
+step 223800  loss 0.058  lr 2.66e-05  0.11s/step  6.64/7 h
+step 224000  loss 0.066  lr 2.63e-05  0.11s/step  6.64/7 h
+step 224200  loss 0.063  lr 2.61e-05  0.11s/step  6.65/7 h
+step 224400  loss 0.061  lr 2.59e-05  0.11s/step  6.65/7 h
+step 224600  loss 0.063  lr 2.57e-05  0.11s/step  6.66/7 h
+step 224800  loss 0.058  lr 2.55e-05  0.11s/step  6.67/7 h
+step 225000  loss 0.058  lr 2.53e-05  0.11s/step  6.67/7 h
+  valid: exact 55.7%  token errors 9.4%
+step 225200  loss 0.074  lr 2.51e-05  0.11s/step  6.68/7 h
+step 225400  loss 0.058  lr 2.50e-05  0.11s/step  6.68/7 h
+step 225600  loss 0.059  lr 2.48e-05  0.11s/step  6.69/7 h
+step 225800  loss 0.057  lr 2.46e-05  0.11s/step  6.69/7 h
+step 226000  loss 0.057  lr 2.44e-05  0.10s/step  6.70/7 h
+step 226200  loss 0.062  lr 2.42e-05  0.11s/step  6.71/7 h
+step 226400  loss 0.056  lr 2.41e-05  0.11s/step  6.71/7 h
+step 226600  loss 0.059  lr 2.39e-05  0.11s/step  6.72/7 h
+step 226800  loss 0.061  lr 2.37e-05  0.11s/step  6.72/7 h
+step 227000  loss 0.059  lr 2.36e-05  0.11s/step  6.73/7 h
+step 227200  loss 0.061  lr 2.34e-05  0.10s/step  6.74/7 h
+step 227400  loss 0.056  lr 2.33e-05  0.11s/step  6.74/7 h
+step 227600  loss 0.064  lr 2.31e-05  0.11s/step  6.75/7 h
+step 227800  loss 0.065  lr 2.30e-05  0.10s/step  6.75/7 h
+step 228000  loss 0.061  lr 2.28e-05  0.11s/step  6.76/7 h
+  valid: exact 55.5%  token errors 9.4%
+step 228200  loss 0.064  lr 2.27e-05  0.11s/step  6.77/7 h
+step 228400  loss 0.068  lr 2.26e-05  0.11s/step  6.77/7 h
+step 228600  loss 0.061  lr 2.24e-05  0.11s/step  6.78/7 h
+step 228800  loss 0.067  lr 2.23e-05  0.11s/step  6.78/7 h
+step 229000  loss 0.061  lr 2.22e-05  0.11s/step  6.79/7 h
+step 229200  loss 0.060  lr 2.21e-05  0.10s/step  6.80/7 h
+step 229400  loss 0.071  lr 2.19e-05  0.11s/step  6.80/7 h
+step 229600  loss 0.057  lr 2.18e-05  0.11s/step  6.81/7 h
+step 229800  loss 0.057  lr 2.17e-05  0.10s/step  6.81/7 h
+step 230000  loss 0.053  lr 2.16e-05  0.11s/step  6.82/7 h
+step 230200  loss 0.057  lr 2.15e-05  0.11s/step  6.82/7 h
+step 230400  loss 0.055  lr 2.14e-05  0.11s/step  6.83/7 h
+step 230600  loss 0.056  lr 2.13e-05  0.11s/step  6.84/7 h
+step 230800  loss 0.058  lr 2.12e-05  0.11s/step  6.84/7 h
+step 231000  loss 0.057  lr 2.11e-05  0.11s/step  6.85/7 h
+  valid: exact 55.5%  token errors 9.4%
+step 231200  loss 0.060  lr 2.10e-05  0.11s/step  6.85/7 h
+step 231400  loss 0.057  lr 2.10e-05  0.10s/step  6.86/7 h
+step 231600  loss 0.057  lr 2.09e-05  0.11s/step  6.87/7 h
+step 231800  loss 0.066  lr 2.08e-05  0.11s/step  6.87/7 h
+step 232000  loss 0.060  lr 2.07e-05  0.11s/step  6.88/7 h
+step 232200  loss 0.060  lr 2.07e-05  0.11s/step  6.88/7 h
+step 232400  loss 0.056  lr 2.06e-05  0.11s/step  6.89/7 h
+step 232600  loss 0.055  lr 2.05e-05  0.11s/step  6.90/7 h
+step 232800  loss 0.055  lr 2.05e-05  0.10s/step  6.90/7 h
+step 233000  loss 0.062  lr 2.04e-05  0.11s/step  6.91/7 h
+step 233200  loss 0.057  lr 2.04e-05  0.11s/step  6.91/7 h
+step 233400  loss 0.055  lr 2.03e-05  0.10s/step  6.92/7 h
+step 233600  loss 0.066  lr 2.03e-05  0.11s/step  6.93/7 h
+step 233800  loss 0.058  lr 2.02e-05  0.11s/step  6.93/7 h
+step 234000  loss 0.057  lr 2.02e-05  0.10s/step  6.94/7 h
+  valid: exact 55.6%  token errors 9.4%
+step 234200  loss 0.058  lr 2.02e-05  0.11s/step  6.94/7 h
+step 234400  loss 0.055  lr 2.01e-05  0.10s/step  6.95/7 h
+step 234600  loss 0.069  lr 2.01e-05  0.10s/step  6.95/7 h
+step 234800  loss 0.055  lr 2.01e-05  0.11s/step  6.96/7 h
+step 235000  loss 0.056  lr 2.01e-05  0.11s/step  6.97/7 h
+step 235200  loss 0.052  lr 2.00e-05  0.11s/step  6.97/7 h
+step 235400  loss 0.056  lr 2.00e-05  0.11s/step  6.98/7 h
+step 235600  loss 0.055  lr 2.00e-05  0.11s/step  6.98/7 h
+step 235800  loss 0.054  lr 2.00e-05  0.10s/step  6.99/7 h
+step 236000  loss 0.065  lr 2.00e-05  0.11s/step  7.00/7 h
+Before tuning on your writing: 61.9% of 113 InkNotes formulas exactly right, token errors 13.0%
+  fine-tune step 100 loss 0.067
+  fine-tune step 200 loss 0.053
+  fine-tune step 300 loss 0.040
+  fine-tune step 400 loss 0.058
+  fine-tune step 500 loss 0.031
+  fine-tune step 600 loss 0.024
+  fine-tune step 700 loss 0.137
+  fine-tune step 800 loss 0.030
+  fine-tune step 900 loss 0.029
+  fine-tune step 1000 loss 0.032
+  fine-tune step 1100 loss 0.027
+  fine-tune step 1200 loss 0.016
+  fine-tune step 1300 loss 0.041
+  fine-tune step 1400 loss 0.054
+  fine-tune step 1500 loss 0.020
+  fine-tune step 1600 loss 0.048
+  fine-tune step 1700 loss 0.036
+  fine-tune step 1800 loss 0.032
+  fine-tune step 1900 loss 0.099
+  fine-tune step 2000 loss 0.038
+  fine-tune step 2100 loss 0.016
+  fine-tune step 2200 loss 0.019
+  fine-tune step 2300 loss 0.014
+  fine-tune step 2400 loss 0.013
+  fine-tune step 2500 loss 0.040
+  fine-tune step 2600 loss 0.025
+  fine-tune step 2700 loss 0.027
+  fine-tune step 2800 loss 0.039
+  fine-tune step 2900 loss 0.038
+  fine-tune step 3000 loss 0.017
+  fine-tune step 3100 loss 0.031
+  fine-tune step 3200 loss 0.035
+  fine-tune step 3300 loss 0.060
+  fine-tune step 3400 loss 0.012
+  fine-tune step 3500 loss 0.046
+  fine-tune step 3600 loss 0.078
+  fine-tune step 3700 loss 0.023
+  fine-tune step 3800 loss 0.075
+  fine-tune step 3900 loss 0.019
+  fine-tune step 4000 loss 0.011
+  fine-tune step 4100 loss 0.011
+  fine-tune step 4200 loss 0.031
+  fine-tune step 4300 loss 0.006
+  fine-tune step 4400 loss 0.022
+  fine-tune step 4500 loss 0.039
+Fold 1 (formulas it never saw): 68.5% of 54 InkNotes formulas exactly right, token errors 11.3%
+  fine-tune step 100 loss 0.101
+  fine-tune step 200 loss 0.037
+  fine-tune step 300 loss 0.037
+  fine-tune step 400 loss 0.043
+  fine-tune step 500 loss 0.038
+  fine-tune step 600 loss 0.011
+  fine-tune step 700 loss 0.059
+  fine-tune step 800 loss 0.109
+  fine-tune step 900 loss 0.031
+  fine-tune step 1000 loss 0.046
+  fine-tune step 1100 loss 0.028
+  fine-tune step 1200 loss 0.084
+  fine-tune step 1300 loss 0.046
+  fine-tune step 1400 loss 0.051
+  fine-tune step 1500 loss 0.003
+  fine-tune step 1600 loss 0.005
+  fine-tune step 1700 loss 0.037
+  fine-tune step 1800 loss 0.027
+  fine-tune step 1900 loss 0.118
+  fine-tune step 2000 loss 0.056
+  fine-tune step 2100 loss 0.022
+  fine-tune step 2200 loss 0.006
+  fine-tune step 2300 loss 0.076
+  fine-tune step 2400 loss 0.020
+  fine-tune step 2500 loss 0.005
+  fine-tune step 2600 loss 0.012
+  fine-tune step 2700 loss 0.027
+  fine-tune step 2800 loss 0.018
+  fine-tune step 2900 loss 0.027
+  fine-tune step 3000 loss 0.024
+  fine-tune step 3100 loss 0.004
+  fine-tune step 3200 loss 0.222
+  fine-tune step 3300 loss 0.035
+  fine-tune step 3400 loss 0.018
+  fine-tune step 3500 loss 0.018
+  fine-tune step 3600 loss 0.019
+  fine-tune step 3700 loss 0.022
+  fine-tune step 3800 loss 0.011
+  fine-tune step 3900 loss 0.023
+  fine-tune step 4000 loss 0.159
+  fine-tune step 4100 loss 0.014
+  fine-tune step 4200 loss 0.048
+  fine-tune step 4300 loss 0.007
+  fine-tune step 4400 loss 0.011
+  fine-tune step 4500 loss 0.017
+Fold 2 (formulas it never saw): 83.1% of 59 InkNotes formulas exactly right, token errors 5.1%
+Tuned, on formulas it never saw: 86/113
+  fine-tune step 100 loss 0.090
+  fine-tune step 200 loss 0.066
+  fine-tune step 300 loss 0.025
+  fine-tune step 400 loss 0.034
+  fine-tune step 500 loss 0.042
+  fine-tune step 600 loss 0.076
+  fine-tune step 700 loss 0.038
+  fine-tune step 800 loss 0.057
+  fine-tune step 900 loss 0.178
+  fine-tune step 1000 loss 0.053
+  fine-tune step 1100 loss 0.028
+  fine-tune step 1200 loss 0.030
+  fine-tune step 1300 loss 0.034
+  fine-tune step 1400 loss 0.034
+  fine-tune step 1500 loss 0.047
+  fine-tune step 1600 loss 0.319
+  fine-tune step 1700 loss 0.028
+  fine-tune step 1800 loss 0.171
+  fine-tune step 1900 loss 0.044
+  fine-tune step 2000 loss 0.035
+  fine-tune step 2100 loss 0.047
+  fine-tune step 2200 loss 0.029
+  fine-tune step 2300 loss 0.048
+  fine-tune step 2400 loss 0.047
+  fine-tune step 2500 loss 0.024
+  fine-tune step 2600 loss 0.014
+  fine-tune step 2700 loss 0.024
+  fine-tune step 2800 loss 0.055
+  fine-tune step 2900 loss 0.037
+  fine-tune step 3000 loss 0.036
+  fine-tune step 3100 loss 0.159
+  fine-tune step 3200 loss 0.025
+  fine-tune step 3300 loss 0.026
+  fine-tune step 3400 loss 0.039
+  fine-tune step 3500 loss 0.026
+  fine-tune step 3600 loss 0.040
+  fine-tune step 3700 loss 0.037
+  fine-tune step 3800 loss 0.025
+  fine-tune step 3900 loss 0.081
+  fine-tune step 4000 loss 0.175
+  fine-tune step 4100 loss 0.026
+  fine-tune step 4200 loss 0.026
+  fine-tune step 4300 loss 0.018
+  fine-tune step 4400 loss 0.026
+  fine-tune step 4500 loss 0.026
+  fine-tune step 4600 loss 0.027
+  fine-tune step 4700 loss 0.033
+  fine-tune step 4800 loss 0.018
+  fine-tune step 4900 loss 0.121
+  fine-tune step 5000 loss 0.022
+  fine-tune step 5100 loss 0.047

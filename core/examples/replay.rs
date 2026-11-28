@@ -19,7 +19,8 @@ fn main() {
         let mut label = vec![String::from("?"); strokes.len()];
         let syms = r["syms"].as_array().cloned().unwrap_or_default();
         let glyphs: Vec<String> = r["glyphs"].as_array().map(|a| a.iter().map(|g| g.as_str().unwrap().to_string()).collect()).unwrap_or_default();
-        let fixed = corrected(&syms, &glyphs, &strokes);
+        // RAW=1: keep the characters exactly as Google read them (what the app really had to work with)
+        let fixed = if std::env::var("RAW").is_ok() { syms.iter().map(|s| s["ch"].as_str().unwrap().to_string()).collect() } else { corrected(&syms, &glyphs, &strokes) };
         for (si, s) in syms.iter().enumerate() {
             for k in s["strokes"].as_array().unwrap() { label[k.as_u64().unwrap() as usize] = fixed.get(si).cloned().unwrap_or_else(|| s["ch"].as_str().unwrap().to_string()); }
         }

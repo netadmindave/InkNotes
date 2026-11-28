@@ -18,7 +18,45 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class Sym(val strokes: List<Int>, val ch: String, val x0: Float)
-data class Piece(val kind: String, val src: String, val alts: List<String>, val strokes: List<Int>, val syms: List<Sym> = emptyList())
+/** tex: the formula model's reading (blank when it wasn't confident or isn't loaded); conf: its confidence */
+data class Piece(val kind: String, val src: String, val alts: List<String>, val strokes: List<Int>, val syms: List<Sym> = emptyList(),
+                 val tex: String = "", val modelTex: String = "", val conf: Float = 0f)
+
+/** The trained ink → LaTeX formula model (assets/inkmath), run by the Rust engine. */
+object FormulaModel {
+    const val MIN_CONF = 0.4f
+    @Volatile var ready = false
+    @Volatile var error = ""
+
+    /** Copies the model out of the APK once (the engine reads it from a file), then loads it. */
+    fun load(ctx: android.content.Context) {
+        if (ready) return
+        try {
+            val dir = java.io.File(ctx.filesDir, "inkmath").apply { mkdirs() }
+            val stamp = ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime.toString()
+            val mark = java.io.File(dir, "installed")
+            for (f in listOf("inkmath.onnx", "vocab.json")) {
+                val out = java.io.File(dir, f)
+                if (!out.exists() || !mark.exists() || mark.readText() != stamp) ctx.assets.open("inkmath/$f").use { i -> out.outputStream().use { i.copyTo(it) } }
+            }
+            mark.writeText(stamp)
+            val r = Core.util("inkmathLoad", jo("onnx" to java.io.File(dir, "inkmath.onnx").path, "vocab" to java.io.File(dir, "vocab.json").path)) as? JSONObject
+            ready = r?.optBoolean("ok") == true
+            error = r?.optString("error") ?: "no engine"
+        } catch (e: Exception) { error = e.message ?: e.toString() }
+    }
+
+    /** strokes: JSON stroke list. Returns (latex, confidence) or null. */
+    fun read(strokes: JSONArray): Pair<String, Float>? {
+        if (!ready) return null
+        val r = Core.util("inkmath", jo("strokes" to strokes)) as? JSONObject ?: return null
+        val t = r.optString("tex")
+        return if (t.isBlank()) null else t to r.optDouble("conf", 0.0).toFloat()
+    }
+
+    /** Same formula? (compares canonical LaTeX tokens, so x^2 and x^{2} match) */
+    fun same(a: String, b: String): Boolean = (Core.utilRaw("texCanon", a) as? String) == (Core.utilRaw("texCanon", b) as? String)
+}
 
 /** Google ML Kit reads characters; the Rust engine does layout (lines, fractions, scripts, limits) around it. */
 object Recognizer {
@@ -94,6 +132,8 @@ object Recognizer {
             st = Core.utilRaw("recoFeed", answers.toString()) as? JSONObject ?: return emptyList()
         }
         val res = st.optJSONArray("result") ?: return emptyList()
+        // piece stroke numbers count the strokes the engine read (highlighter and empty strokes left out)
+        val used = (0 until strokes.length()).map { strokes.getJSONObject(it) }.filter { it.optString("k") != "hl" && (it.optJSONArray("p")?.length() ?: 0) > 0 }
         return (0 until res.length()).map { i ->
             val o = res.getJSONObject(i)
             val alts = o.optJSONArray("alts") ?: JSONArray()
@@ -101,7 +141,14 @@ object Recognizer {
             val sy = o.optJSONArray("syms") ?: JSONArray()
             val syms = (0 until sy.length()).map { k -> val q = sy.getJSONObject(k); val st = q.getJSONArray("strokes")
                 Sym((0 until st.length()).map { st.getInt(it) }, q.optString("ch"), q.getJSONArray("b").getDouble(0).toFloat()) }
-            Piece(o.getString("type"), o.getString("src"), (0 until alts.length()).map { alts.getString(it) }, (0 until ids.length()).map { ids.getInt(it) }, syms)
+            val type = o.getString("type")
+            val idl = (0 until ids.length()).map { ids.getInt(it) }
+            var tex = ""; var modelTex = ""; var conf = 0f
+            if (type == "math" && FormulaModel.ready) {
+                val mine = JSONArray(); idl.forEach { k -> used.getOrNull(k)?.let { mine.put(it) } }
+                FormulaModel.read(mine)?.let { (t, c) -> modelTex = t; conf = c; if (c >= FormulaModel.MIN_CONF) tex = t }
+            }
+            Piece(type, o.getString("src"), (0 until alts.length()).map { alts.getString(it) }, idl, syms, tex, modelTex, conf)
         }
     }
 }

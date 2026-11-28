@@ -25,7 +25,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /** One converted piece: the ink it came from, and the editable result. */
-class ReviewRow(val ink: Bitmap?, val x0: Float, val y0: Float, val y1: Float, kind0: String, text0: String, tex0: String, val alts: List<String>) {
+class ReviewRow(val ink: Bitmap?, val x0: Float, val y0: Float, val y1: Float, kind0: String, text0: String, tex0: String, val alts: List<String>, val texAlts: List<String> = emptyList()) {
     var kind by mutableStateOf(kind0)
     var text by mutableStateOf(text0)
     var tex by mutableStateOf(tex0)
@@ -67,6 +67,14 @@ fun MainActivity.ReviewDialog(rows: List<ReviewRow>) {
                                         TexImage(latexToSrc(r.tex), 26f, Modifier.fillMaxWidth())
                                     }
                                     Text(if (mathRow === r) "Editing below" else "Tap the formula to edit it", fontSize = 12.sp, color = Color(0xFF8A8A8A))
+                                    if (r.texAlts.isNotEmpty() && !r.skip) FlowRow {
+                                        Text("Or: ", fontSize = 13.sp, modifier = Modifier.align(Alignment.CenterVertically))
+                                        r.texAlts.forEach { a ->
+                                            Box(Modifier.padding(2.dp).border(1.dp, Color(0xFFD8D0BD), RoundedCornerShape(8.dp)).clickable { r.tex = a; if (mathRow === r) mathRow = null }.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                                                TexImage(latexToSrc(a), 18f, Modifier.widthIn(max = 260.dp))
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

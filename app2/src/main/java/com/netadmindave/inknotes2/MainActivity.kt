@@ -139,6 +139,7 @@ class MainActivity : ComponentActivity() {
         store.pref("confusions", "").takeIf { it.isNotEmpty() }?.let { Core.utilRaw("confusionsLoad", it) }
         wireInk()
         lifecycleScope.launch { Recognizer.init() }
+        lifecycleScope.launch(Dispatchers.Default) { FormulaModel.load(applicationContext) }
         refreshList()
         val last = store.pref("lastNote", "")
         if (last.isNotEmpty() && store.load(last) != null) openNote(last) else if (notes.isNotEmpty()) openNote(notes[0].id) else openNote(store.create())
@@ -300,7 +301,12 @@ class MainActivity : ComponentActivity() {
                     if (x0 == Float.MAX_VALUE) continue
                     val src = if (pc.kind == "text") ((Core.util("clean", jo("text" to applyCorrections(pc.src), "words" to JSONArray(words), "autoMath" to autoMath)) as? JSONObject)?.optString("text") ?: pc.src) else pc.src
                     val bm = withContext(Dispatchers.Default) { inkBitmap(mine) }
-                    rows.add(ReviewRow(bm, x0, y0, y1, pc.kind, if (pc.kind == "text") src else "", if (pc.kind == "math") srcToLatex(src) else "", pc.alts.filter { it.isNotBlank() && it != src }.take(4)))
+                    val engineTex = if (pc.kind == "math") srcToLatex(src) else ""
+                    val tex = if (pc.kind == "math") pc.tex.ifBlank { engineTex } else ""
+                    // the other reading (layout engine vs formula model), offered as a one-tap alternative
+                    val other = if (pc.kind != "math") "" else if (pc.tex.isNotBlank()) engineTex else pc.modelTex
+                    val texAlts = if (other.isNotBlank() && !FormulaModel.same(other, tex)) listOf(other) else emptyList()
+                    rows.add(ReviewRow(bm, x0, y0, y1, pc.kind, if (pc.kind == "text") src else "", tex, pc.alts.filter { it.isNotBlank() && it != src }.take(4), texAlts))
                 }
                 if (rows.isEmpty()) toast("Couldn't read that — try writing a little larger") else review = rows
             } catch (e: Exception) { toast(e.message ?: "Conversion failed") }
