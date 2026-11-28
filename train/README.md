@@ -11,3 +11,9 @@ Score a trained model through the on-device code: `cargo run --release --example
 Python/Rust parity: `cargo run --release --example inkmath_parity -- inkmath.onnx parity.json vocab.json`
 
 Training data: MathWriting (Google, CC BY-NC-SA 4.0).
+
+## Homework (Samsung Notes) data
+`homework/sdocx_dump.rs` (uses the `sdocx` crate; older notes need `sdocx = "=0.5.0"`) dumps strokes from .sdocx files;
+`core/examples/sdlines.rs` splits pages into lines with the app's splitter; `homework/seg2.py` renders lines and runs the model;
+labels were typed from the line images; `homework/strip.py` removes grader check marks. Output: `inknotes-homework.jsonl`
+(kind "homework", prompt = note name, so the honest-score folds hold out whole notes).

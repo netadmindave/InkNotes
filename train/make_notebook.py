@@ -52,7 +52,8 @@ if not os.path.exists(DAVE):
     up = files.upload()
     name = next(iter(up))
     open(DAVE, 'wb').write(up[name])
-print('your recordings:', sum(1 for _ in open(DAVE)), 'inks')
+HOMEWORK = os.path.join(DRIVE, 'inknotes-homework.jsonl')
+print('your recordings:', sum(1 for _ in open(DAVE)), 'inks;', 'homework lines:', sum(1 for _ in open(HOMEWORK)) if os.path.exists(HOMEWORK) else 'none (optional: put inknotes-homework.jsonl in the Drive folder)')
 """)
 code("""
 # MathWriting -> cache (done once; kept in Drive)
@@ -73,6 +74,8 @@ vocab = im.Vocab.load('/content/cache/vocab.json')
 train_c = im.Cache.load('/content/cache/train')
 valid_c = im.Cache.load('/content/cache/valid')
 dave = run.load_inknotes(DAVE, vocab)
+if os.path.exists(HOMEWORK):
+    dave += run.load_inknotes(HOMEWORK, vocab)
 print(len(vocab.toks), 'tokens;', len(train_c), 'training inks;', len(dave), 'of your inks usable')
 """)
 code("""
@@ -89,11 +92,14 @@ code("""
 model, _ = run.load_model(BASE)
 em0, rep0 = run.inknotes_report(model, vocab, dave, 'Before tuning on your writing')
 say(rep0.split('\\n')[0])
+if any(d['kind'] == 'homework' for d in dave):
+    _, rep0h = run.inknotes_report(model, vocab, dave, 'Before tuning on your writing', kind='homework')
+    say(rep0h.split('\\n')[0]); rep0 += '\\n\\n' + rep0h
 """)
 code("""
 # Honest score after tuning: tune on half of your prompts, test on the other half (and swap)
 folds = run.prompt_folds(dave)
-rep_f, right, total = [], 0, 0
+rep_f, right, total, hr, ht = [], 0, 0, 0, 0
 for k, held in enumerate(folds):
     tr = [d for d in dave if d['prompt'] not in held]
     te = [d for d in dave if d['prompt'] in held and d['kind'] == 'formula']
@@ -101,7 +107,13 @@ for k, held in enumerate(folds):
     em, rep = run.inknotes_report(fm, vocab, te, f'Fold {k + 1} (formulas it never saw)')
     right += round(em * len(te)); total += len(te)
     say(rep.split('\\n')[0]); rep_f.append(rep)
+    teh = [d for d in dave if d['prompt'] in held and d['kind'] == 'homework']
+    if teh:
+        emh, reph = run.inknotes_report(fm, vocab, teh, f'Fold {k + 1} (homework notes it never saw)', kind='homework')
+        hr += round(emh * len([d for d in teh if not d['unsure']])); ht += len([d for d in teh if not d['unsure']])
+        say(reph.split('\\n')[0]); rep_f.append(reph)
 say(f'Tuned, on formulas it never saw: {right}/{total}')
+if ht: say(f'Tuned, on homework notes it never saw: {hr}/{ht}')
 """)
 code("""
 # Final model: tuned on all of your writing; export and download
@@ -203,7 +215,8 @@ DAVE = HERE / 'inknotes-dave.jsonl'
 if not DAVE.exists():
     DAVE = WORK / 'inknotes-dave.jsonl'
 assert DAVE.exists(), 'Put inknotes-dave.jsonl next to this notebook, then run this cell again.'
-print('your recordings:', sum(1 for _ in open(DAVE, encoding='utf-8')), 'inks')
+HOMEWORK = HERE / 'inknotes-homework.jsonl'
+print('your recordings:', sum(1 for _ in open(DAVE, encoding='utf-8')), 'inks;', 'homework lines:', sum(1 for _ in open(HOMEWORK, encoding='utf-8')) if HOMEWORK.exists() else 'none (optional: put inknotes-homework.jsonl next to this notebook)')
 log_f = open(WORK / 'log.txt', 'a', encoding='utf-8')
 def say(s):
     print(s); log_f.write(s + '\\n'); log_f.flush()
@@ -240,6 +253,8 @@ vocab = im.Vocab.load(CACHE / 'vocab.json')
 train_c = im.Cache.load(str(CACHE / 'train'))
 valid_c = im.Cache.load(str(CACHE / 'valid'))
 dave = run.load_inknotes(DAVE, vocab)
+if os.path.exists(HOMEWORK):
+    dave += run.load_inknotes(HOMEWORK, vocab)
 print(len(vocab.toks), 'tokens;', len(train_c), 'training inks;', len(dave), 'of your inks usable')
 """)
 code("""
@@ -253,11 +268,14 @@ code("""
 model, _ = run.load_model(BASE)
 em0, rep0 = run.inknotes_report(model, vocab, dave, 'Before tuning on your writing')
 say(rep0.split('\\n')[0])
+if any(d['kind'] == 'homework' for d in dave):
+    _, rep0h = run.inknotes_report(model, vocab, dave, 'Before tuning on your writing', kind='homework')
+    say(rep0h.split('\\n')[0]); rep0 += '\\n\\n' + rep0h
 """)
 code("""
 # Honest score after tuning: tune on half of your prompts, test on the other half (and swap)
 folds = run.prompt_folds(dave)
-rep_f, right, total = [], 0, 0
+rep_f, right, total, hr, ht = [], 0, 0, 0, 0
 for k, held in enumerate(folds):
     tr = [d for d in dave if d['prompt'] not in held]
     te = [d for d in dave if d['prompt'] in held and d['kind'] == 'formula']
@@ -265,7 +283,13 @@ for k, held in enumerate(folds):
     em, rep = run.inknotes_report(fm, vocab, te, f'Fold {k + 1} (formulas it never saw)')
     right += round(em * len(te)); total += len(te)
     say(rep.split('\\n')[0]); rep_f.append(rep)
+    teh = [d for d in dave if d['prompt'] in held and d['kind'] == 'homework']
+    if teh:
+        emh, reph = run.inknotes_report(fm, vocab, teh, f'Fold {k + 1} (homework notes it never saw)', kind='homework')
+        hr += round(emh * len([d for d in teh if not d['unsure']])); ht += len([d for d in teh if not d['unsure']])
+        say(reph.split('\\n')[0]); rep_f.append(reph)
 say(f'Tuned, on formulas it never saw: {right}/{total}')
+if ht: say(f'Tuned, on homework notes it never saw: {hr}/{ht}')
 """)
 code("""
 # Final model: tuned on all of your writing; export

@@ -109,7 +109,7 @@ def load_inknotes(path, vocab):
         if ids is None:
             print("  skipped (token not in vocabulary):", r["latex"])
             continue
-        out.append(dict(p=im.coarse(strokes), ids=ids, toks=toks, prompt=r["prompt"], kind=r["kind"], latex=r["latex"]))
+        out.append(dict(p=im.coarse(strokes), ids=ids, toks=toks, prompt=r["prompt"], kind=r["kind"], latex=r["latex"], unsure=bool(r.get("unsure"))))
     return out
 
 
@@ -316,10 +316,11 @@ def valid_eval_fn(valid, vocab, n=1500, seed=0):
     return f
 
 
-def inknotes_report(model, vocab, dave, title):
-    forms = [d for d in dave if d["kind"] == "formula"]
+def inknotes_report(model, vocab, dave, title, kind="formula"):
+    forms = [d for d in dave if d["kind"] == kind and not d.get("unsure")]
     em, ter, res = score(model, vocab, [(d["p"], d["toks"]) for d in forms])
-    lines = [f"{title}: {em:.1%} of {len(forms)} InkNotes formulas exactly right, token errors {ter:.1%}"]
+    what = "practice formulas" if kind == "formula" else "homework lines"
+    lines = [f"{title}: {em:.1%} of {len(forms)} {what} exactly right, token errors {ter:.1%}"]
     for d, r in zip(forms, res):
         lines.append(f"  {'✓' if r[0] == d['toks'] else '✗'} {d['latex']:<40} got {im.join(r[0])}   conf {r[1]:.2f}")
     return em, "\n".join(lines)
