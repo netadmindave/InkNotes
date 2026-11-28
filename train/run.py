@@ -17,32 +17,74 @@ def _load_one(path):
         lab = ann.get("normalizedLabel") or ann.get("label") or ""
         if not strokes or not lab:
             return None
-        return im.coarse(strokes).astype(np.float16), lab, ann.get("splitTagOriginal", "")
+        return im.coarse(strokes).astype(np.float16), lab
     except Exception:
         return None
 
 
-def prepare(mw_dir, out_dir, workers=None, limit=None):
-    """Read every InkML file once, keep coarse points + labels.  Writes train/valid caches and vocab.json."""
-    os.makedirs(out_dir, exist_ok=True)
-    files = {sp: sorted(glob.glob(os.path.join(mw_dir, sp, "*.inkml"))) for sp in ["train", "synthetic", "symbols", "valid", "test"]}
-    for sp, f in files.items():
-        print(f"{sp}: {len(f)} inks")
-        if limit:
-            files[sp] = f[:limit]
+SPLITS = ["train", "synthetic", "symbols", "valid", "test"]
+
+
+def prepare(mw_dir, out_dir, workers=None, limit=None, log=print):
+    """Read every InkML file of an unpacked MathWriting folder once; writes train/valid/test caches and vocab.json."""
+    files = {sp: sorted(glob.glob(os.path.join(mw_dir, sp, "*.inkml"))) for sp in SPLITS}
     raw = {}
     with Pool(workers or os.cpu_count()) as pool:
         for sp, f in files.items():
             t = time.time()
-            raw[sp] = [r for r in pool.imap(_load_one, f, chunksize=256) if r is not None]
-            print(f"  read {sp}: {len(raw[sp])} in {time.time() - t:.0f}s")
-    vocab = im.Vocab.build((r[1] for sp in ["train", "synthetic", "symbols"] for r in raw[sp]), min_count=20 if not limit else 1)
+            raw[sp] = [r for r in pool.imap(_load_one, f[:limit] if limit else f, chunksize=256) if r is not None]
+            log(f"  read {sp}: {len(raw[sp])} inks in {time.time() - t:.0f}s")
+    return _finish(raw, out_dir, small=bool(limit), log=log)
+
+
+def _parse_member(item):
+    name, data = item
+    try:
+        strokes, ann = im.read_inkml_text(data.decode("utf-8"))
+        lab = ann.get("normalizedLabel") or ann.get("label") or ""
+        if not strokes or not lab:
+            return None
+        return name.replace("\\", "/").split("/")[-2], im.coarse(strokes).astype(np.float16), lab
+    except Exception:
+        return None
+
+
+def prepare_tgz(tgz, out_dir, workers=None, small=False, log=print):
+    """Same as prepare(), reading straight from mathwriting-2024.tgz (no unpacking of 650k small files)."""
+    import tarfile
+    raw = {sp: [] for sp in SPLITS}
+    t, n = time.time(), 0
+    import multiprocessing as mp
+    ctx = mp.get_context("spawn" if os.name == "nt" or os.environ.get("INKMATH_SPAWN") else None)
+    with ctx.Pool(workers or max(1, (os.cpu_count() or 2) - 1)) as pool, tarfile.open(tgz, "r|gz") as tf:
+        chunk = []
+        def flush():
+            for r in pool.map(_parse_member, chunk, chunksize=64):
+                if r is not None and r[0] in raw:
+                    raw[r[0]].append(r[1:])
+            chunk.clear()
+        for m in tf:
+            if m.isfile() and m.name.endswith(".inkml"):
+                chunk.append((m.name, tf.extractfile(m).read()))
+                n += 1
+                if len(chunk) >= 20000:
+                    flush()
+                    log(f"  {n} inks read ({time.time() - t:.0f}s)")
+        flush()
+    log("  " + ", ".join(f"{sp}: {len(v)}" for sp, v in raw.items()) + f"  ({time.time() - t:.0f}s)")
+    return _finish(raw, out_dir, small=small, log=log)
+
+
+def _finish(raw, out_dir, small=False, log=print):
+    os.makedirs(out_dir, exist_ok=True)
+    vocab = im.Vocab.build((r[1] for sp in ["train", "synthetic", "symbols"] for r in raw[sp]), min_count=1 if small else 20)
     vocab.save(os.path.join(out_dir, "vocab.json"))
-    print(f"vocab: {len(vocab.toks)} tokens")
+    log(f"vocab: {len(vocab.toks)} tokens")
     for name, sps in [("train", ["train", "synthetic", "symbols"]), ("valid", ["valid"]), ("test", ["test"])]:
         items, dropped = [], 0
         for sp in sps:
-            for p, lab, _ in raw[sp]:
+            for r in raw[sp]:
+                p, lab = r[0], r[1]
                 ids = vocab.encode(im.canon(lab))
                 if ids is None or len(p) < 2:
                     dropped += 1
@@ -50,7 +92,7 @@ def prepare(mw_dir, out_dir, workers=None, limit=None):
                 items.append((p, ids, sp))
         c = im.Cache.build(items)
         c.save(os.path.join(out_dir, name))
-        print(f"{name}: {len(c)} inks ({dropped} dropped), {len(c.pts)} points")
+        log(f"{name}: {len(c)} inks ({dropped} dropped)")
     return vocab
 
 
@@ -72,6 +114,12 @@ def load_inknotes(path, vocab):
 
 
 # ---------------------------------------------------------------- training
+def _loader(stream, workers):
+    ctx = "spawn" if (os.name == "nt" or os.environ.get("INKMATH_SPAWN")) and workers else None
+    return torch.utils.data.DataLoader(stream, batch_size=None, num_workers=workers, prefetch_factor=4 if workers else None,
+                                       multiprocessing_context=ctx, persistent_workers=False)
+
+
 def device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -171,7 +219,7 @@ def train(ds, vocab, ckpt, hours, max_frames=48000, peak_lr=1e-3, warm=2000, wor
         log("time budget already used; nothing to do")
         model.eval()
         return model
-    loader = torch.utils.data.DataLoader(_Stream(ds, max_frames, seed + start), batch_size=None, num_workers=workers, prefetch_factor=4 if workers else None)
+    loader = _loader(_Stream(ds, max_frames, seed + start), workers)
     scaler = torch.amp.GradScaler(enabled=dev.type == "cuda")
     ctc = torch.nn.CTCLoss(blank=0, zero_infinity=True)
     t_last = time.time()
@@ -295,7 +343,7 @@ def finetune(base_ckpt, mw_train, dave_items, vocab, out_ckpt, minutes, reps=40,
     opt = torch.optim.AdamW(model.parameters(), lr=peak_lr, weight_decay=0.01)
     ctc = torch.nn.CTCLoss(blank=0, zero_infinity=True)
     scaler = torch.amp.GradScaler(enabled=dev.type == "cuda")
-    loader = torch.utils.data.DataLoader(_Stream(ds, max_frames, 7, sub=sub), batch_size=None, num_workers=workers, prefetch_factor=4 if workers else None)
+    loader = _loader(_Stream(ds, max_frames, 7, sub=sub), workers)
     t_end = time.time() + minutes * 60
     step = 0
     total = None

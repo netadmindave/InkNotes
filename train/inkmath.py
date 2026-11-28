@@ -252,8 +252,12 @@ def export_onnx(model, path):
 
 # ---------------------------------------------------------------- data
 def read_inkml(path):
+    return read_inkml_text(open(path, encoding="utf-8").read())
+
+
+def read_inkml_text(text):
     from xml.etree import ElementTree
-    root = ElementTree.fromstring(open(path, encoding="utf-8").read())
+    root = ElementTree.fromstring(text)
     strokes, ann = [], {}
     for el in root:
         tag = el.tag.split("}")[-1]
@@ -273,8 +277,19 @@ def inknotes_strokes(rec_strokes):
 class Cache:
     """All training inks as coarse points in one float16 array + offsets (memory-mappable)."""
 
-    def __init__(self, pts, off, labels, src):
-        self.pts, self.off, self.labels, self.src = pts, off, labels, src
+    def __init__(self, pts, off, labels, src, base=None):
+        self.pts, self.off, self.labels, self.src, self.base = pts, off, labels, src, base
+
+    def __getstate__(self):
+        if self.base:       # worker processes reopen the files rather than receive a copy of the data
+            return {"base": self.base}
+        return self.__dict__
+
+    def __setstate__(self, st):
+        if list(st) == ["base"]:
+            self.__dict__.update(Cache.load(st["base"]).__dict__)
+        else:
+            self.__dict__.update(st)
 
     def __len__(self):
         return len(self.labels)
@@ -290,7 +305,7 @@ class Cache:
     @staticmethod
     def load(base, mmap=True):
         m = json.load(open(base + "-meta.json"))
-        return Cache(np.load(base + "-pts.npy", mmap_mode="r" if mmap else None), np.load(base + "-off.npy"), m["labels"], m["src"])
+        return Cache(np.load(base + "-pts.npy", mmap_mode="r" if mmap else None), np.load(base + "-off.npy"), m["labels"], m["src"], base if mmap else None)
 
     @staticmethod
     def build(items):

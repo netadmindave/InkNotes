@@ -119,12 +119,164 @@ files.download('/content/inkmath-model.zip')
 print('Done. Upload inkmath-model.zip to Claude (a copy is also in your Drive, InkNotes-training folder).')
 """)
 
-nb = {"cells": cells, "metadata": {"accelerator": "GPU", "colab": {"provenance": [], "gpuType": "T4"},
-                                   "kernelspec": {"name": "python3", "display_name": "Python 3"}, "language_info": {"name": "python"}},
-      "nbformat": 4, "nbformat_minor": 0}
-for c in cells:
-    c["source"] = [l + "\n" for l in c["source"].split("\n")]
-    c["source"][-1] = c["source"][-1].rstrip("\n")
-out = os.path.join(here, "InkNotes_formula_training.ipynb")
-json.dump(nb, open(out, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
-print("wrote", out)
+
+def save(cells, out, colab):
+    meta = {"kernelspec": {"name": "python3", "display_name": "Python 3"}, "language_info": {"name": "python"}}
+    if colab:
+        meta.update({"accelerator": "GPU", "colab": {"provenance": [], "gpuType": "T4"}})
+    for c in cells:
+        if isinstance(c["source"], str):
+            c["source"] = [l + "\n" for l in c["source"].split("\n")]
+            c["source"][-1] = c["source"][-1].rstrip("\n")
+    json.dump({"cells": cells, "metadata": meta, "nbformat": 4, "nbformat_minor": 4}, open(out, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    print("wrote", out)
+
+
+save(cells, os.path.join(here, "InkNotes_formula_training.ipynb"), True)
+
+# ---------------------------------------------------------------- local Windows / PyCharm version
+cells = []
+md("""
+# InkNotes formula model training (local, Windows + PyCharm)
+
+Trains the small handwriting → LaTeX model on your laptop's NVIDIA GPU and tunes it on your own writing.
+Everything is kept in an `inknotes-training` folder next to this notebook. If anything stops it, just **Run All** again
+and it carries on from the last save.
+
+**One-time setup** (in PyCharm's Terminal, with the project's Python 3.10–3.12 interpreter selected):
+
+```
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+pip install numpy onnx onnxscript onnxruntime jupyter
+```
+
+The first line matters: plain `pip install torch` gives a CPU-only build on Windows, which would take days.
+
+**Then:** put `inknotes-dave.jsonl` in the same folder as this notebook, plug the laptop in, and **Run All**.
+
+* About 15 GB of free disk is needed (2.9 GB download + about 3 GB of cache, plus checkpoints).
+* Total time is about 4½ hours. The notebook keeps Windows from sleeping while it runs. Closing the lid may still sleep it.
+* At the end it writes **inkmath-model.zip** into the `inknotes-training` folder. Upload that file to Claude.
+
+Training data: Google's MathWriting (CC BY-NC-SA 4.0, fine for personal, non-commercial use).
+""")
+code("""
+# Settings
+TRAIN_HOURS = 3.0        # main training time (total, across restarts)
+FOLD_MINUTES = 8         # each of the 2 honest-score fine-tunes
+FINAL_MINUTES = 12       # final fine-tune on all your writing
+MAX_FRAMES = 32000       # batch size (input points per batch). If you get 'CUDA out of memory', use 24000
+WORKERS = 4              # CPU processes preparing batches
+""")
+code("""
+import os, sys, subprocess, time
+from pathlib import Path
+HERE = Path.cwd()
+WORK = HERE / 'inknotes-training'
+WORK.mkdir(exist_ok=True)
+os.chdir(HERE)
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+import torch
+print('Python', sys.version.split()[0], '| torch', torch.__version__)
+if torch.cuda.is_available():
+    print('GPU:', torch.cuda.get_device_name(0), f'({torch.cuda.get_device_properties(0).total_memory / 2**30:.1f} GB)')
+else:
+    print('NO GPU VISIBLE. In the Terminal run:\\n  pip uninstall -y torch\\n  pip install torch --index-url https://download.pytorch.org/whl/cu124\\nthen restart the kernel and Run All.')
+for mod in ['numpy', 'onnx', 'onnxscript', 'onnxruntime']:
+    try:
+        __import__(mod)
+    except ImportError:
+        print('missing', mod, '-> run in the Terminal: pip install', mod)
+if os.name == 'nt':   # keep Windows awake while the kernel is running
+    import ctypes
+    ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)
+    print('sleep disabled while this runs')
+""")
+for name, s_ in src.items():
+    code(f"%%writefile {name}\n" + s_)
+code("""
+import importlib, shutil, json
+import inkmath as im, run
+importlib.reload(im); importlib.reload(run)
+DAVE = HERE / 'inknotes-dave.jsonl'
+if not DAVE.exists():
+    DAVE = WORK / 'inknotes-dave.jsonl'
+assert DAVE.exists(), 'Put inknotes-dave.jsonl next to this notebook, then run this cell again.'
+print('your recordings:', sum(1 for _ in open(DAVE, encoding='utf-8')), 'inks')
+log_f = open(WORK / 'log.txt', 'a', encoding='utf-8')
+def say(s):
+    print(s); log_f.write(s + '\\n'); log_f.flush()
+""")
+code("""
+# MathWriting download (resumes if interrupted) and one-time preparation
+import urllib.request
+URL = 'https://storage.googleapis.com/mathwriting_data/mathwriting-2024.tgz'
+TGZ = WORK / 'mathwriting-2024.tgz'
+CACHE = WORK / 'cache'
+if not (CACHE / 'test-meta.json').exists():
+    req = urllib.request.Request(URL, method='HEAD')
+    total = int(urllib.request.urlopen(req).headers['Content-Length'])
+    have = TGZ.stat().st_size if TGZ.exists() else 0
+    if have < total:
+        req = urllib.request.Request(URL, headers={'Range': f'bytes={have}-'})
+        with urllib.request.urlopen(req) as r, open(TGZ, 'ab') as f:
+            t0, last = time.time(), 0
+            while True:
+                b = r.read(1 << 20)
+                if not b:
+                    break
+                f.write(b); have += len(b)
+                if time.time() - last > 10:
+                    print(f'  downloaded {have / 2**30:.2f} / {total / 2**30:.2f} GB', end='\\r'); last = time.time()
+    print('\\ndownload complete; preparing (reads the archive once, ~20-40 min)...')
+    # a separate process, so the memory it uses is handed back afterwards
+    cmd = [sys.executable, '-u', '-c', f"import sys; sys.path.insert(0, {str(HERE)!r}); import run; run.prepare_tgz({str(TGZ)!r}, {str(CACHE)!r})"]
+    p = subprocess.Popen(cmd, cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in p.stdout:
+        print(line, end='')
+    assert p.wait() == 0, 'preparation failed (see above)'
+vocab = im.Vocab.load(CACHE / 'vocab.json')
+train_c = im.Cache.load(str(CACHE / 'train'))
+valid_c = im.Cache.load(str(CACHE / 'valid'))
+dave = run.load_inknotes(DAVE, vocab)
+print(len(vocab.toks), 'tokens;', len(train_c), 'training inks;', len(dave), 'of your inks usable')
+""")
+code("""
+# Main training (resumes from the last save if interrupted)
+BASE = str(WORK / 'base.pt')
+model = run.train(run.Mixed(train_c, [], 0), vocab, BASE, hours=TRAIN_HOURS, max_frames=MAX_FRAMES, workers=WORKERS,
+                  eval_fn=run.valid_eval_fn(valid_c, vocab), eval_every=3000, log=say)
+""")
+code("""
+# How well does it read your writing before seeing any of it?
+model, _ = run.load_model(BASE)
+em0, rep0 = run.inknotes_report(model, vocab, dave, 'Before tuning on your writing')
+say(rep0.split('\\n')[0])
+""")
+code("""
+# Honest score after tuning: tune on half of your prompts, test on the other half (and swap)
+folds = run.prompt_folds(dave)
+rep_f, right, total = [], 0, 0
+for k, held in enumerate(folds):
+    tr = [d for d in dave if d['prompt'] not in held]
+    te = [d for d in dave if d['prompt'] in held and d['kind'] == 'formula']
+    fm = run.finetune(BASE, train_c, tr, vocab, str(WORK / f'fold{k}.pt'), minutes=FOLD_MINUTES, max_frames=MAX_FRAMES, workers=WORKERS, log=say)
+    em, rep = run.inknotes_report(fm, vocab, te, f'Fold {k + 1} (formulas it never saw)')
+    right += round(em * len(te)); total += len(te)
+    say(rep.split('\\n')[0]); rep_f.append(rep)
+say(f'Tuned, on formulas it never saw: {right}/{total}')
+""")
+code("""
+# Final model: tuned on all of your writing; export
+FINAL = str(WORK / 'final.pt')
+fm = run.finetune(BASE, train_c, dave, vocab, FINAL, minutes=FINAL_MINUTES, max_frames=MAX_FRAMES, workers=WORKERS, log=say)
+em1, rep1 = run.inknotes_report(fm, vocab, dave, 'Final model on all your formulas (it has seen these)')
+report = '\\n\\n'.join([rep0] + rep_f + [rep1, open(WORK / 'log.txt', encoding='utf-8').read()[-20000:]])
+out = WORK / 'inkmath-model'
+run.export(FINAL, str(CACHE / 'vocab.json'), str(out), report)
+m0, _ = run.load_model(BASE, torch.device('cpu')); im.export_onnx(m0, str(out / 'inkmath-base.onnx'))
+shutil.make_archive(str(WORK / 'inkmath-model'), 'zip', out)
+print('Done. Upload this file to Claude:', WORK / 'inkmath-model.zip')
+""")
+save(cells, os.path.join(here, "InkNotes_formula_training_local.ipynb"), False)
