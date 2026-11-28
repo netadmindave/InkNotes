@@ -146,7 +146,7 @@ and it carries on from the last save.
 **One-time setup** (in PyCharm's Terminal, with the project's Python 3.10–3.12 interpreter selected):
 
 ```
-pip install torch --index-url https://download.pytorch.org/whl/cu124
+pip install torch --index-url https://download.pytorch.org/whl/cu126
 pip install numpy onnx onnxscript onnxruntime jupyter
 ```
 
@@ -182,7 +182,7 @@ print('Python', sys.version.split()[0], '| torch', torch.__version__)
 if torch.cuda.is_available():
     print('GPU:', torch.cuda.get_device_name(0), f'({torch.cuda.get_device_properties(0).total_memory / 2**30:.1f} GB)')
 else:
-    print('NO GPU VISIBLE. In the Terminal run:\\n  pip uninstall -y torch\\n  pip install torch --index-url https://download.pytorch.org/whl/cu124\\nthen restart the kernel and Run All.')
+    print('NO GPU VISIBLE. In the Terminal run:\\n  pip uninstall -y torch\\n  pip install torch --index-url https://download.pytorch.org/whl/cu126\\nthen restart the kernel and Run All.')
 for mod in ['numpy', 'onnx', 'onnxscript', 'onnxruntime']:
     try:
         __import__(mod)
